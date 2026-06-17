@@ -1,0 +1,9 @@
+{
+  "name": "SignMentor",
+  "description": "Visual sign language learning system with simulated camera and real-time AI feedback.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
