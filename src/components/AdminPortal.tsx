@@ -343,7 +343,7 @@ export default function AdminPortal({ lessons, onAddCustomLesson, onDeleteLesson
                     </td>
 
                     {/* Active/Idle Badge pill */}
-                    <td className="py-3.5 px-2">
+                    <td className="py-4 px-4">
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                         usr.status === 'Active' 
                           ? 'bg-[#E8EAF6] text-[#3F51B5]' 
@@ -354,7 +354,7 @@ export default function AdminPortal({ lessons, onAddCustomLesson, onDeleteLesson
                     </td>
 
                     {/* Progress track custom */}
-                    <td className="py-3.5 px-2 text-center">
+                    <td className="py-4 px-4 text-center">
                       <div className="flex items-center gap-sm max-w-[120px] mx-auto">
                         <div className="bg-[#E8EAF6] rounded-full h-1.5 w-full overflow-hidden">
                           <div 
@@ -366,11 +366,11 @@ export default function AdminPortal({ lessons, onAddCustomLesson, onDeleteLesson
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-2 text-[#7E88AC]">
+                    <td className="py-4 px-4 text-[#7E88AC]">
                       {usr.lastActive}
                     </td>
 
-                    <td className="py-3.5 px-1">
+                    <td className="py-4 px-4">
                       <button 
                         onClick={() => alert(`Operational controls for ${usr.name} are locked. Please contact IT root administrator.`)}
                         className="p-1 px-1.5 text-outline hover:text-on-surface hover:bg-[#F3F4FB] rounded transition-all cursor-pointer"

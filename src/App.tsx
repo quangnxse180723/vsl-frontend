@@ -6,6 +6,8 @@ import { Lesson } from './types';
 import { useSignMentor } from './hook/useSignMentor';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
+import LoginView from './components/LoginView';
+import RegisterView from './components/RegisterView';
 import DashboardView from './components/DashboardView';
 import LessonsCatalog from './components/LessonsCatalog';
 import LessonModal from './components/LessonModal';
@@ -15,6 +17,8 @@ import AdminPortal from './components/AdminPortal';
 import DailyChallengeModal from './components/DailyChallengeModal';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [activeTab, setActiveTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin'>('dashboard');
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [showDailyChallenge, setShowDailyChallenge] = useState<boolean>(false);
@@ -34,6 +38,24 @@ export default function App() {
     setActiveTab(tab);
     setMobileMenuOpen(false);
   };
+
+  // Màn hình Login/Register nếu chưa đăng nhập
+  if (!isAuthenticated) {
+    if (authMode === 'login') {
+      return (
+        <LoginView 
+          onLogin={() => setIsAuthenticated(true)} 
+          onSwitchToRegister={() => setAuthMode('register')} 
+        />
+      );
+    }
+    return (
+      <RegisterView 
+        onRegister={() => setIsAuthenticated(true)} 
+        onSwitchToLogin={() => setAuthMode('login')} 
+      />
+    );
+  }
 
   return (
     <div className="bg-slate-50 text-slate-900 font-sans h-screen flex flex-col overflow-hidden">
@@ -85,6 +107,7 @@ export default function App() {
                 stats={stats}
                 onUpdateNameAndBio={() => { setStats(prev => ({ ...prev })); }}
                 onStartDailyChallenge={() => setShowDailyChallenge(true)}
+                onLogout={() => setIsAuthenticated(false)}
               />
             )}
 

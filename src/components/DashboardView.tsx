@@ -44,7 +44,7 @@ export default function DashboardView({
     <div className="space-y-8 animate-fade-in w-full">
       {/* Premium Dashboard Greeting Header */}
       {/* Đổi gap-md -> gap-4, mt-sm -> mt-2 */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-outline-variant p-6 rounded-2xl shadow-sm">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white border border-outline-variant p-8 rounded-2xl shadow-sm">
         <div>
           <span className="font-mono text-xs font-bold text-primary uppercase tracking-widest bg-primary/5 px-2.5 py-1 rounded-full">
             STUDENT DASHBOARD
@@ -56,7 +56,7 @@ export default function DashboardView({
             Ready to master some new signs today? Your path to ASL fluency looks beautiful.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl shrink-0">
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-6 py-4 rounded-xl shrink-0">
           <Clock className="w-4 h-4 text-primary" />
           <span className="text-xs font-mono font-bold text-on-surface">XP Target Goal: 200/Day</span>
         </div>
@@ -104,7 +104,7 @@ export default function DashboardView({
                 <button
                   type="button"
                   onClick={() => recommendedLesson && onStartLesson(recommendedLesson)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition-all hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 shadow-md"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold py-3 px-8 rounded-xl text-sm transition-all hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 shadow-md"
                 >
                   <Play className="w-4 h-4 fill-white shrink-0" />
                   <span>Continue Learning</span>
@@ -248,7 +248,7 @@ export default function DashboardView({
             <div className="space-y-3">
               {recentResults.map((result, i) => (
                 // Đổi p-md -> p-3
-                <div key={i} className="flex flex-col gap-1.5 bg-slate-50 border border-slate-100 rounded-xl p-3">
+                <div key={i} className="flex flex-col gap-2 bg-slate-50 border border-slate-100 rounded-xl p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-slate-800">

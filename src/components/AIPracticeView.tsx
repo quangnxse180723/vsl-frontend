@@ -399,9 +399,9 @@ export default function AIPracticeView({ lessons, stats, onGrantXP }: AIPractice
                     </div>
                   </div>
 
-                  <div className="bg-surface rounded-xl p-sm border border-outline-variant">
+                  <div className="bg-surface rounded-xl p-5 border border-outline-variant">
                     <span className="text-[9px] font-mono font-bold text-primary block uppercase">COACHING ADVICE</span>
-                    <p className="text-xs font-semibold text-on-surface mt-0.5 leading-relaxed">
+                    <p className="text-sm font-semibold text-on-surface mt-2 leading-relaxed">
                       "{evaluationResult.feedback}"
                     </p>
                   </div>

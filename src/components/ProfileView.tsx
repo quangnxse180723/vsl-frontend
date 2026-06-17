@@ -14,9 +14,10 @@ interface ProfileViewProps {
   stats: UserStats;
   onUpdateNameAndBio: (name: string, bio: string, goal: string) => void;
   onStartDailyChallenge?: () => void;
+  onLogout: () => void; // New prop for logout
 }
 
-export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyChallenge }: ProfileViewProps) {
+export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyChallenge, onLogout }: ProfileViewProps) {
   // Let's set name to "Alex Chen" to match the photo
   const [name, setName] = useState<string>('Alex Chen');
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -33,7 +34,7 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
     setSuccessMsg('Profile updated successfully!');
     setTimeout(() => setSuccessMsg(''), 3000);
   };
-
+  
   const recentPracticeItems = [
     {
       id: 1,
@@ -343,6 +344,19 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
           </div>
         </div>
 
+      </div>
+      
+      {/* Logout Section */}
+      <div className="bg-white border border-[#E8EAF6] rounded-3xl p-lg shadow-xs mt-lg text-center">
+        <h3 className="font-headline text-md font-bold text-on-surface mb-4">
+          Account Actions
+        </h3>
+        <button 
+          onClick={onLogout}
+          className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all active:scale-95 shadow cursor-pointer"
+        >
+          Logout
+        </button>
       </div>
 
     </div>
