@@ -1,283 +1,289 @@
-import { useState } from 'react';
-import { 
-  Sparkles, Flame, Clock, Award, Star, ArrowRight, CheckCircle, Brain, Play, TrendingUp
-} from 'lucide-react';
-import { Lesson, UserStats } from '../types';
+import React, { useState } from 'react';
+import { User, Lesson, RecentResult, Achievement } from '../types';
+import { Sparkles, Play, Award, ChevronRight, TrendingUp, Calendar, Zap, MessageSquare, ArrowRight } from 'lucide-react';
 
 interface DashboardViewProps {
-  stats: UserStats;
+  currentUser: User;
   lessons: Lesson[];
-  onNavigateToLessons: (category?: string) => void;
-  onStartLesson: (lesson: Lesson) => void;
+  recentResults: RecentResult[];
+  achievements: Achievement[];
+  onNavigateToTab: (tab: 'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin') => void;
+  onSelectLesson: (lessonId: string) => void;
+  onStartDailyChallenge: () => void;
 }
 
-export default function DashboardView({ 
-  stats, 
-  lessons, 
-  onNavigateToLessons, 
-  onStartLesson 
+export default function DashboardView({
+  currentUser,
+  lessons,
+  recentResults,
+  achievements,
+  onNavigateToTab,
+  onSelectLesson,
+  onStartDailyChallenge
 }: DashboardViewProps) {
-  const recommendedLesson = lessons.find(l => l.progress > 0 && l.progress < 100) || lessons.find(l => l.progress === 0) || lessons[0];
-  
-  const otherRecommendations = lessons
-    .filter(l => l.id !== recommendedLesson?.id)
-    .slice(0, 2);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-  const totalLessons = lessons.length || 8;
-  const completedCount = lessons.filter(l => l.progress === 100).length;
-  const averageProgress = Math.round(lessons.reduce((acc, curr) => acc + curr.progress, 0) / totalLessons);
-  const progressPercent = Math.min(100, Math.max(10, Math.round((completedCount / totalLessons) * 100)));
-
-  const radius = 40;
-  const strokeWidth = 8;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (progressPercent / 100) * circumference;
-
-  const recentResults = [
-    { title: 'ASL Letter "A"', time: 'Practiced 10 mins ago', accuracy: 94, status: 'Completed' },
-    { title: 'ASL Phrase "Hello"', time: 'Practiced Yesterday', accuracy: 88, status: 'Mastered' },
-    { title: 'ASL Number "3"', time: 'Practiced 2 days ago', accuracy: 100, status: 'Mastered' },
-  ];
+  // Recommendations: get first 2 beginner/in-progress lessons
+  const recommendations = lessons.filter(l => l.progress < 100).slice(0, 2);
 
   return (
-    // Đổi space-y-lg thành space-y-8
-    <div className="space-y-8 animate-fade-in w-full">
-      {/* Premium Dashboard Greeting Header */}
-      {/* Đổi gap-md -> gap-4, mt-sm -> mt-2 */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white border border-outline-variant p-8 rounded-2xl shadow-sm">
+    <div className="space-y-8 animate-fade-in">
+      
+      {/* Welcome Header */}
+      <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-1 bg-surface rounded-xl">
         <div>
-          <span className="font-mono text-xs font-bold text-primary uppercase tracking-widest bg-primary/5 px-2.5 py-1 rounded-full">
-            STUDENT DASHBOARD
-          </span>
-          <h2 className="font-headline text-2xl md:text-3xl text-on-surface mt-2 font-bold leading-tight">
-            Hello, Learner!
-          </h2>
-          <p className="text-sm md:text-base text-on-surface-variant font-medium mt-1">
-            Ready to master some new signs today? Your path to ASL fluency looks beautiful.
-          </p>
+          <p className="text-primary font-semibold text-xs tracking-wider uppercase mb-1">WELCOME BACK</p>
+          <h2 className="font-display text-3xl md:text-4xl font-extrabold text-on-surface">Hello, {currentUser.name}!</h2>
+          <p className="text-body-md text-on-surface-variant mt-1">Ready to master some new signs today?</p>
         </div>
-        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-6 py-4 rounded-xl shrink-0">
-          <Clock className="w-4 h-4 text-primary" />
-          <span className="text-xs font-mono font-bold text-on-surface">XP Target Goal: 200/Day</span>
-        </div>
-      </header>
+        <button 
+          onClick={onStartDailyChallenge}
+          className="active-scale bg-primary hover:bg-primary/95 text-on-primary px-5 py-3 rounded-xl font-semibold shadow-md flex items-center gap-2 self-start md:self-auto"
+        >
+          <span className="material-symbols-outlined text-xl">bolt</span>
+          Start Daily Challenge
+        </button>
+      </section>
 
-      {/* Primary Workspace */}
-      {/* Đổi gap-lg -> gap-6 */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
-        {/* LEFT COLUMN: 2/3 width on large screens */}
-        <div className="xl:col-span-2 space-y-6">
+      {/* Top Bento Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+        {/* Learning Progress Card (Left Column) */}
+        <div className="lg:col-span-8 p-6 md:p-8 rounded-2xl bg-surface-container-lowest elevation-1 flex flex-col sm:flex-row items-center gap-6 border border-outline-variant/30">
+          <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
+            {/* Custom SVG Circular Progress */}
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+              <circle className="text-surface-container-high" cx="50" cy="50" fill="transparent" r="42" stroke="currentColor" strokeWidth="8" />
+              <circle 
+                className="text-primary" 
+                cx="50" 
+                cy="50" 
+                fill="transparent" 
+                r="42" 
+                stroke="currentColor" 
+                strokeWidth="8" 
+                strokeDasharray="264" 
+                strokeDashoffset="92" // 65% progress (264 * 0.35)
+                strokeLinecap="round" 
+              />
+            </svg>
+            <span className="absolute text-3xl font-display font-extrabold text-primary">65%</span>
+          </div>
           
-          {/* Circular Learning Progress Card */}
-          {/* Đổi p-lg -> p-6, gap-lg -> gap-6 */}
-          <div className="bg-white border border-outline-variant rounded-2xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
-            
-            {/* SVG Interactive Circular Gauge Widget */}
-            <div className="relative shrink-0 w-28 h-28 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle cx="56" cy="56" r={radius} className="stroke-slate-100 fill-transparent" strokeWidth={strokeWidth} />
-                <circle cx="56" cy="56" r={radius} className="stroke-indigo-600 fill-transparent transition-all duration-1000 ease-out" 
-                  strokeWidth={strokeWidth}
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center">
-                <span className="text-2xl font-black font-headline text-slate-800">{progressPercent}%</span>
-                <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider">Mastered</span>
-              </div>
-            </div>
+          <div className="flex-1 text-center sm:text-left">
+            <h3 className="font-display text-2xl text-on-surface mb-2 font-bold select-none">Learning Progress</h3>
+            <p className="text-on-surface-variant text-body-md mb-6 leading-relaxed">
+              You're making great progress! Finish 3 more lessons to unlock the Advanced Handshapes module.
+            </p>
+            <button 
+              onClick={() => onNavigateToTab('lessons')}
+              className="active-scale px-6 py-2.5 bg-primary text-on-primary font-semibold rounded-lg shadow-sm hover:bg-primary/95 transition-all text-sm"
+            >
+              Continue Learning
+            </button>
+          </div>
+        </div>
 
-            {/* Explanation & Action column */}
-            <div className="flex-1 space-y-2 text-center md:text-left">
-              <h3 className="text-lg font-bold font-headline text-slate-800 leading-snug">
-                Learning Progress
-              </h3>
-              <p className="text-sm text-slate-600 font-medium">
-                You're making great progress! Finish {Math.max(1, 3 - completedCount)} more lessons to unlock the Advanced Handshapes module.
-              </p>
-              
-              {/* Đổi mt-lg -> mt-4, gap-md -> gap-4 */}
-              <div className="flex flex-col sm:flex-row items-center gap-4 mt-4 pt-2">
-                <button
-                  type="button"
-                  onClick={() => recommendedLesson && onStartLesson(recommendedLesson)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold py-3 px-8 rounded-xl text-sm transition-all hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 shadow-md"
-                >
-                  <Play className="w-4 h-4 fill-white shrink-0" />
-                  <span>Continue Learning</span>
-                </button>
-                <div className="text-xs text-slate-500 font-semibold">
-                  Course average: <span className="text-indigo-600 font-bold">{averageProgress}% completed</span>
-                </div>
-              </div>
+        {/* Daily Practice Streak (Right Column) */}
+        <div className="lg:col-span-4 p-6 rounded-2xl bg-primary text-on-primary elevation-1 flex flex-col justify-between overflow-hidden relative group">
+          <div className="relative z-10">
+            <div className="flex items-center space-x-2 mb-4">
+              <span className="material-symbols-outlined text-2xl fill-none text-on-primary" style={{fontVariationSettings: "'FILL' 1"}}>local_fire_department</span>
+              <span className="font-semibold text-xs tracking-wider uppercase">Daily Streak</span>
+            </div>
+            <h3 className="text-5xl font-extrabold leading-tight mb-2 tracking-tight">5 Days</h3>
+            <p className="text-sm opacity-90">Keep it up! Reach 7 days for a profile status badge.</p>
+          </div>
+          
+          <div className="mt-8 z-10 w-full">
+            <div className="w-full h-2.5 bg-white/20 rounded-full overflow-hidden">
+              <div className="w-[71%] h-full bg-white rounded-full transition-all duration-500"></div>
             </div>
           </div>
+          {/* Abstract backdrop */}
+          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-500"></div>
+        </div>
+      </div>
 
-          {/* Recommended for You List */}
-          {/* Đổi p-lg -> p-6, space-y-md -> space-y-4 */}
-          <div className="bg-white border border-outline-variant p-6 rounded-2xl space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold font-headline text-slate-800 flex items-center gap-2">
-                <Brain className="w-5 h-5 text-indigo-600" />
-                <span>Recommended for You</span>
-              </h3>
-              <button onClick={() => onNavigateToLessons()} className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline">
-                <span>View All</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
+      {/* Recommended & Recent Results Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full">
+        {/* Recommended Lessons */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-2xl font-bold text-on-surface">Recommended for You</h3>
+            <button 
+              onClick={() => onNavigateToTab('lessons')}
+              className="text-primary font-bold flex items-center hover:underline text-sm gap-1 active-scale"
+            >
+              View All <ArrowRight className="w-4 h-4 ml-0.5" />
+            </button>
+          </div>
 
-            {/* Recommendations Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {lessons.slice(0, 2).map((lesson) => (
-                <div key={lesson.id} onClick={() => onStartLesson(lesson)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden cursor-pointer flex flex-col group hover:scale-[1.01] hover:border-indigo-400 transition-all"
-                >
-                  <div className="relative aspect-video w-full overflow-hidden shrink-0">
-                    <img alt={lesson.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" src={lesson.imageUrl} />
-                    <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold text-indigo-800">
-                      {lesson.category}
-                    </div>
-                  </div>
-                  {/* Đổi p-md -> p-4 */}
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-800 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                        {lesson.title}
-                      </h4>
-                      <p className="text-xs text-slate-600 font-medium line-clamp-2 mt-1 leading-relaxed">
-                        {lesson.description}
-                      </p>
-                    </div>
-                    {/* Đổi mt-sm -> mt-3, pt-xs -> pt-2 */}
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mt-3 pt-2 border-t border-slate-200">
-                      <span>{lesson.difficulty}</span>
-                      <span className="text-indigo-600 font-bold">{lesson.progress}% completed</span>
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {recommendations.map(lesson => (
+              <div 
+                key={lesson.id}
+                onClick={() => onSelectLesson(lesson.id)}
+                className="group rounded-2xl bg-surface-container-lowest elevation-1 overflow-hidden hover:elevation-2 transition-all cursor-pointer border border-outline-variant/30"
+              >
+                <div className="h-40 bg-surface-variant relative overflow-hidden">
+                  <img 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    src={lesson.image} 
+                    alt={lesson.title} 
+                  />
+                  <div className="absolute top-3 right-3 px-3 py-1 bg-primary text-on-primary text-xs font-bold rounded-full">
+                    {lesson.level}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: 1/3 width on large screens */}
-        {/* Đổi space-y-lg -> space-y-6 */}
-        <div className="space-y-6">
-          
-          {/* Daily Streak Card */}
-          {/* Đổi p-lg -> p-6 */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-900 to-indigo-950 p-6 text-white shadow-xl flex flex-col justify-between h-52">
-            <div className="absolute -right-8 -top-8 w-24 h-24 bg-orange-500/15 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute -left-8 -bottom-8 w-16 h-16 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="flex items-start justify-between">
-              <div className="bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm text-[10px] font-bold uppercase tracking-wider font-mono">
-                Daily Streak
-              </div>
-              <div className="relative flex items-center justify-center">
-                <Flame className="w-10 h-10 text-orange-500 fill-orange-500 stroke-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)] animate-pulse" />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-3xl font-black font-headline text-white mt-1">
-                {stats.streakDays} Days
-              </h3>
-              <p className="text-xs text-white/80 font-medium leading-relaxed mt-1">
-                Keep it up! Reach 7 days for a profile badge and bonus multipliers.
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between items-center text-[10px] font-bold text-white/60">
-                <span>GOAL: 7 DAYS</span>
-                <span>{stats.streakDays}/7 completed</span>
-              </div>
-              <div className="bg-white/20 rounded-full h-1.5 w-full overflow-hidden">
-                <div className="bg-orange-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (stats.streakDays / 7) * 100)}%` }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Level Board */}
-          {/* Đổi p-lg -> p-6 */}
-          <div className="bg-white shadow-sm border border-slate-200 rounded-2xl p-6 flex flex-col justify-between">
-            <div>
-              {/* Đổi mb-sm -> mb-4 */}
-              <h3 className="text-sm font-extrabold font-mono text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Award className="text-indigo-600 w-4 h-4 stroke-[2.5]" />
-                <span>Level Tracker</span>
-              </h3>
-              {/* Đổi my-sm -> my-4 */}
-              <div className="flex items-center gap-4 my-4">
-                <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xl font-black font-headline shadow-inner shrink-0">
-                  {stats.level}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-800 leading-tight">Level {stats.level} Novice</p>
-                  <p className="text-xs text-slate-500 font-medium">Earn {200 - (stats.xp % 200)} more XP for level {stats.level + 1}</p>
-                </div>
-              </div>
-              
-              {/* Đổi mt-md -> mt-4 */}
-              <div className="space-y-1.5 mt-4">
-                <div className="flex justify-between text-[11px] font-mono font-bold text-slate-500">
-                  <span>XP: {stats.xp % 200}/200</span>
-                  <span className="text-indigo-600">{Math.round(((stats.xp % 200) / 200) * 100)}%</span>
-                </div>
-                <div className="bg-slate-100 rounded-full h-2 w-full overflow-hidden">
-                  <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${((stats.xp % 200) / 200) * 100}%` }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Performance Details */}
-          {/* Đổi p-lg -> p-6, space-y-md -> space-y-4 */}
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl space-y-4 shadow-sm">
-            <h3 className="text-sm font-extrabold font-mono text-slate-500 uppercase tracking-wider flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <span>Recent Results</span>
-            </h3>
-            
-            {/* Đổi space-y-sm -> space-y-3 */}
-            <div className="space-y-3">
-              {recentResults.map((result, i) => (
-                // Đổi p-md -> p-3
-                <div key={i} className="flex flex-col gap-2 bg-slate-50 border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800">
-                        {result.title}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                        {result.time}
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                      {result.accuracy}%
+                <div className="p-5 space-y-3">
+                  <div>
+                    <h4 className="font-headline-md text-lg text-on-surface group-hover:text-primary transition-colors">{lesson.title}</h4>
+                    <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{lesson.description}</p>
+                  </div>
+                  <div className="flex items-center text-xs text-outline space-x-3 pt-2 border-t border-outline-variant/20">
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[16px]">schedule</span> {lesson.duration}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[16px]">star</span> {lesson.rating}
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
-                    <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${result.accuracy}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Practice Results */}
+        <div className="lg:col-span-4 space-y-6">
+          <h3 className="font-display text-2xl font-bold text-on-surface">Recent Results</h3>
+          <div className="p-6 rounded-2xl bg-surface-container-lowest elevation-1 border border-outline-variant/30 space-y-4">
+            {recentResults.map(res => (
+              <div 
+                key={res.id} 
+                className="flex items-center justify-between p-3 border border-outline-variant/40 rounded-xl bg-surface-container-lowest hover:border-primary transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined text-xl">{res.icon}</span>
+                  </div>
+                  <div>
+                    <p className="font-label-bold text-on-surface text-sm">{res.sign}</p>
+                    <p className="text-xs text-on-surface-variant">{res.statusText}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <button type="button" onClick={() => onNavigateToLessons()}
-              className="w-full text-center py-2.5 border-2 border-dashed border-slate-200 hover:border-indigo-400 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-all rounded-xl mt-2"
+                <div className="text-right">
+                  <div className={`text-base font-bold ${res.accuracy >= 90 ? 'text-green-600' : 'text-primary'}`}>
+                    {res.accuracy}%
+                  </div>
+                  <div className="text-[10px] text-outline">Accuracy</div>
+                </div>
+              </div>
+            ))}
+            <button 
+              onClick={() => setShowHistoryModal(true)}
+              className="w-full py-2.5 text-primary text-sm font-bold bg-surface hover:bg-surface-container-high transition-colors rounded-lg border-2 border-transparent hover:border-primary-container"
             >
               View Performance History
             </button>
           </div>
-
         </div>
       </div>
+
+      {/* Level Up CTA Banner */}
+      <section className="mt-8">
+        <div className="bg-surface-container-high p-6 md:p-8 rounded-2xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden border border-outline-variant/20">
+          <div className="relative z-10 max-w-lg space-y-5">
+            <div>
+              <h4 className="font-headline-md text-2xl text-on-surface mb-2">Ready to level up?</h4>
+              <p className="text-on-surface-variant text-sm">
+                Unlock the intermediate "Emergency Signs" module to get real-time webcam feedback and collaborative practice badges.
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => onNavigateToTab('lessons')}
+                className="bg-primary text-on-primary px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/95 active-scale-lg transition-all"
+              >
+                Continue Module
+              </button>
+              <button 
+                onClick={() => onNavigateToTab('lessons')}
+                className="bg-transparent border border-outline text-on-surface px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-colors"
+              >
+                View Curriculum
+              </button>
+            </div>
+          </div>
+          <div className="hidden md:block flex-1 h-48 rounded-xl overflow-hidden shadow-lg border-4 border-white transform rotate-3">
+            <img 
+              className="w-full h-full object-cover" 
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1q5BKGtXc3O0p0EW7_jOIvIM0_hMt_aerpdhIu2YJXyzdzYQvPAXFMDy1n5gc0D2HmJgTyN6aaEQuPWs0reDEcTmXvwNeh_CsB1C1j1rNT_x9PbMqUNI7S9VZXhQhU306q567cX8E9Pfq8frg6uebajSPbXfOSPzSbqFX4QGNVMlYk5Isxiw5KBUN_hHhKW1rI-jPkRIyph4EgCfwq4jiBC_8m7odnEHKFAnuNTifdm9IpjoRKX6rF2TOv6J3YzWj-ce6TUcgeQYk" 
+              alt="Community group learning sign language" 
+            />
+          </div>
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl"></div>
+        </div>
+      </section>
+
+      {/* Performance History Modal Simulation */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-container-lowest max-w-md w-full rounded-2xl p-6 shadow-2xl space-y-6 border border-outline-variant/30">
+            <header className="flex justify-between items-center border-b border-outline-variant/20 pb-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">assessment</span>
+                <h3 className="font-headline-md text-xl">Performance History</h3>
+              </div>
+              <button 
+                onClick={() => setShowHistoryModal(false)}
+                className="p-1 hover:bg-surface-container-high rounded-full transition-colors material-symbols-outlined text-on-surface"
+              >
+                close
+              </button>
+            </header>
+
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
+              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
+                <div>
+                  <h4 className="font-label-bold text-on-surface">Alphabet A</h4>
+                  <p className="text-xs text-on-surface-variant">Thứ Hai • 3 Thử Nghiệm</p>
+                </div>
+                <span className="font-display text-xl text-green-600 font-bold">100%</span>
+              </div>
+              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
+                <div>
+                  <h4 className="font-label-bold text-on-surface">Cụm Từ Chào Hỏi</h4>
+                  <p className="text-xs text-on-surface-variant">Thứ Ba • 5 Thử Nghiệm</p>
+                </div>
+                <span className="font-display text-xl text-primary font-bold">85%</span>
+              </div>
+              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
+                <div>
+                  <h4 className="font-label-bold text-on-surface">Giao Tiếp Cơ Bản</h4>
+                  <p className="text-xs text-on-surface-variant">Thứ Tư • 8 Thử Nghiệm</p>
+                </div>
+                <span className="font-display text-xl text-primary font-bold">88%</span>
+              </div>
+              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
+                <div>
+                  <h4 className="font-label-bold text-on-surface">Vui Vẽ (Happy)</h4>
+                  <p className="text-xs text-on-surface-variant">Thứ Năm • 2 Thử Nghiệm</p>
+                </div>
+                <span className="font-display text-xl text-green-600 font-bold">92%</span>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowHistoryModal(false)}
+              className="w-full py-3 bg-primary text-on-primary font-label-bold rounded-lg hover:bg-primary/95 active-scale transition-all"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

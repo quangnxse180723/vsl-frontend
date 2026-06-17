@@ -1,5 +1,12 @@
+
+# Không copy những thứ này vào Docker image
 node_modules
 dist
-npm-debug.log
-.git
 .env
+.env.local
+.env.*.local
+.git
+.gitignore
+*.log
+README.md
+

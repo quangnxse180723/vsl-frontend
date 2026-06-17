@@ -1,10 +1,10 @@
 {
   "name": "SignMentor",
-  "description": "Master American Sign Language (ASL) at your own pace with interactive visual lessons and AI-powered practice using your webcam.",
+
+  "description": "Visual sign language learning system with simulated camera and real-time AI feedback.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "microphone"
   ],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
