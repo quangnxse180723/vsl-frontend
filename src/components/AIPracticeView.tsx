@@ -227,9 +227,9 @@ export default function AIPracticeView({ lessons, stats, onGrantXP }: AIPractice
                       : 'border-outline-variant hover:border-primary-container bg-white hover:scale-[1.005]'
                   }`}
                 >
-                  <div className="flex justify-between items-center">
+                <div className="flex justify-between items-start gap-2">
                     <span className="font-headline font-bold text-base text-on-surface">{t.name}</span>
-                    <span className="font-mono font-bold text-xs bg-primary/10 text-primary px-2.5 py-0.5 rounded-full">
+                  <span className="font-mono font-bold text-xs bg-primary/10 text-primary px-2.5 py-0.5 rounded-full shrink-0">
                       "{t.target}"
                     </span>
                   </div>
@@ -251,7 +251,7 @@ export default function AIPracticeView({ lessons, stats, onGrantXP }: AIPractice
         {/* Center/Right: Capture Panel & Results */}
         <div className="lg:col-span-2 space-y-md">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-md items-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-md items-stretch">
             
             {/* Capture Viewer */}
             <div className="space-y-sm">
@@ -378,8 +378,8 @@ export default function AIPracticeView({ lessons, stats, onGrantXP }: AIPractice
               {analyzing ? (
                 <div className="bg-white border-2 border-outline-variant rounded-2xl p-lg text-center h-[264px] flex flex-col items-center justify-center space-y-sm">
                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                  <h4 className="text-sm font-bold text-on-surface">Validating joints and bounds...</h4>
-                  <p className="text-xs text-on-surface-variant max-w-xs leading-relaxed">
+                  <h4 className="text-sm font-bold text-on-surface leading-tight">Validating joints and bounds...</h4>
+                  <p className="text-xs text-on-surface-variant max-w-xs leading-snug">
                     Analyzing finger alignments and wrist angles against training reference constraints for "{selectedTarget.name}".
                   </p>
                 </div>

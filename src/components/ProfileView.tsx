@@ -97,12 +97,12 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
         
         {/* Stat 1: Practice Time */}
         <div className="bg-white border border-[#E8EAF6] rounded-3xl p-md flex flex-col justify-between shadow-xs min-h-[120px] relative overflow-hidden group">
-          <div className="flex justify-between items-start">
+          <div className="flex justify-between items-center">
             <span className="text-[10px] font-extrabold font-mono text-[#4CAF50] bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
               +12% vs last week
             </span>
             <div className="w-8 h-8 rounded-full bg-[#E8EAF6] text-[#3F51B5] flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4" strokeWidth={2.5} />
             </div>
           </div>
           <div>
@@ -112,13 +112,13 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
         </div>
 
         {/* Stat 2: Lessons Completed */}
-        <div className="bg-white border border-[#E8EAF6] rounded-3xl p-md flex flex-col justify-between shadow-xs min-h-[120px] relative">
-          <div className="flex justify-between items-start">
+        <div className="bg-white border border-[#E8EAF6] rounded-3xl p-md flex flex-col justify-between shadow-xs min-h-[120px] lg:min-h-[140px] relative">
+          <div className="flex justify-between items-center">
             <span className="text-[10px] font-extrabold font-mono text-[#3F51B5] bg-[#E8EAF6] border border-transparent px-2.5 py-0.5 rounded-full">
               On Track
             </span>
             <div className="w-8 h-8 rounded-full bg-[#E8EAF6] text-[#3F51B5] flex items-center justify-center shrink-0">
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-4 h-4" strokeWidth={2.5} />
             </div>
           </div>
           <div>
@@ -128,8 +128,8 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
         </div>
 
         {/* Stat 3: Current Streak */}
-        <div className="bg-white border border-[#E8EAF6] rounded-3xl p-md flex flex-col justify-between shadow-xs min-h-[120px] relative">
-          <div className="flex justify-between items-start">
+        <div className="bg-white border border-[#E8EAF6] rounded-3xl p-md flex flex-col justify-between shadow-xs min-h-[120px] lg:min-h-[140px] relative">
+          <div className="flex justify-between items-center">
             <span className="text-[10px] font-extrabold font-mono text-[#FF9800] bg-orange-50 border border-orange-100 px-2.5 py-0.5 rounded-full">
               Personal Best!
             </span>
@@ -144,7 +144,7 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
         </div>
 
         {/* Brand progress card (Mockup exact visual solid container) */}
-        <div className="bg-gradient-to-br from-[#5C6BC0] to-[#3F51B5] text-white rounded-3xl p-md shadow-lg relative overflow-hidden flex flex-col justify-between min-h-[130px]">
+        <div className="bg-gradient-to-br from-[#5C6BC0] to-[#3F51B5] text-white rounded-3xl p-md shadow-lg relative overflow-hidden flex flex-col justify-between min-h-[130px] lg:min-h-[140px]">
           
           {/* Overlapping background Cap icon visual */}
           <GraduationCap className="absolute -right-4 -bottom-4 w-28 h-28 text-white/5 pointer-events-none" />
@@ -251,7 +251,7 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
             {recentPracticeItems.map((item, idx) => {
               const IconComponent = item.icon;
               return (
-                <div key={item.id} className="flex items-center justify-between p-sm bg-[#FAFAFD] hover:bg-[#F3F4FB] rounded-2xl border border-outline-variant/30 transition-all">
+                <div key={item.id} className="flex items-start sm:items-center justify-between p-sm bg-[#FAFAFD] hover:bg-[#F3F4FB] rounded-2xl border border-outline-variant/30 transition-all">
                   <div className="flex items-center gap-sm">
                     <div className="w-9 h-9 rounded-xl bg-[#E3F2FD] text-blue-600 flex items-center justify-center shrink-0">
                       <IconComponent className="w-4.5 h-4.5" />
@@ -275,7 +275,7 @@ export default function ProfileView({ stats, onUpdateNameAndBio, onStartDailyCha
       </div>
 
       {/* 4. LEVEL UP CALL-TO-ACTION LEVEL BANNER WITH ROTATED POLAROID PREVIEW */}
-      <div className="bg-[#E8EAF6]/80 border border-[#C5CAE9] rounded-3xl p-lg flex flex-col md:flex-row items-center justify-between gap-lg relative overflow-hidden shadow-xs mt-lg">
+      <div className="bg-[#E8EAF6]/80 border border-[#C5CAE9] rounded-3xl p-lg flex flex-col md:flex-row items-center justify-between gap-lg relative overflow-hidden shadow-xs mt-lg min-h-[280px]">
         
         {/* Main core call-out copy */}
         <div className="space-y-md max-w-lg z-15 text-center md:text-left">

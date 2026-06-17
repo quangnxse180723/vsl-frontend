@@ -5,21 +5,22 @@
 
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
+// import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = process.cwd();
+
+
 
 async function createServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' }));
-
+  app.use(express.static(path.join(__dirname, 'dist')));
   // Dynamic Gemini Client Lazy-Loader
   function getGenAI() {
     const apiKey = process.env.GEMINI_API_KEY;

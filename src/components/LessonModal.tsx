@@ -267,7 +267,7 @@ export default function LessonModal({ lesson, onClose, onUpdateProgress }: Lesso
               <span>Exit Studio</span>
             </button>
             <div className="h-4 w-[1px] bg-white/20 hidden sm:block" />
-            <div className="truncate hidden sm:block">
+            <div className="truncate hidden sm:flex items-center">
               <span className="text-[10px] font-mono bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full uppercase font-bold mr-2">
                 {lesson.category}
               </span>
@@ -345,7 +345,7 @@ export default function LessonModal({ lesson, onClose, onUpdateProgress }: Lesso
               <span className="text-[10px] font-mono font-bold text-outline uppercase tracking-wider block">CHALLENGE STEPS TO PRACTICE</span>
               <ol className="space-y-sm">
                 {lesson.steps.map((st, i) => (
-                  <li key={i} className="flex gap-3 text-xs">
+                  <li key={i} className="flex items-start gap-3 text-xs">
                     <span className={`w-5 fill-none h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 border transition-all ${currentStep >= i ? 'bg-primary text-white border-primary shadow-sm' : 'bg-surface-container border-outline text-outline font-medium'}`}>
                       {currentStep > i ? '✓' : i + 1}
                     </span>
@@ -394,7 +394,7 @@ export default function LessonModal({ lesson, onClose, onUpdateProgress }: Lesso
             </div>
 
             {/* TAB VIEW PORT WORKSPACE */}
-            <div className="flex-1 overflow-y-auto p-lg flex flex-col justify-between">
+            <div className="flex-1 overflow-y-auto p-lg flex flex-col">
               
               <AnimatePresence mode="wait">
                 {/* LEARN TAB */}
@@ -498,10 +498,10 @@ export default function LessonModal({ lesson, onClose, onUpdateProgress }: Lesso
                                       onClick={() => setQuizAnswers(prev => ({ ...prev, [q.id]: opt }))}
                                       className={`text-left p-sm text-xs rounded-xl border-2 transition-all cursor-pointer ${borderStyle} ${bgStyle}`}
                                     >
-                                      <div className="flex items-center justify-between">
+                                      <div className="flex items-start justify-between gap-2">
                                         <span>{opt}</span>
-                                        {isSelected && !quizSubmitted && <span className="w-2 h-2 rounded-full bg-primary" />}
-                                        {quizSubmitted && opt === q.correctAnswer && <span className="text-green-600 font-bold text-xs font-mono shrink-0">✓ Correct</span>}
+                                        {isSelected && !quizSubmitted && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />}
+                                        {quizSubmitted && opt === q.correctAnswer && <span className="text-green-600 font-bold text-xs font-mono shrink-0">✓ CORRECT</span>}
                                         {quizSubmitted && isSelected && opt !== q.correctAnswer && <span className="text-red-500 font-bold text-xs font-mono shrink-0">✗ WRONG</span>}
                                       </div>
                                     </button>

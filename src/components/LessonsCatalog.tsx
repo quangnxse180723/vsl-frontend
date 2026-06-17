@@ -49,10 +49,10 @@ export default function LessonsCatalog({
   return (
     <div className="space-y-lg animate-fade-in">
       {/* Catalog Title Header */}
-      <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-md">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="font-headline text-headline-lg font-bold text-on-surface">Lesson Catalog</h2>
-          <p className="text-body-lg text-on-surface-variant font-medium mt-xs">
+          <h2 className="font-headline text-3xl sm:text-4xl font-bold text-on-surface">Lesson Catalog</h2>
+          <p className="text-sm sm:text-base text-on-surface-variant font-medium mt-2 max-w-2xl">
             Master American Sign Language at your own pace with interactive visual lessons.
           </p>
         </div>
@@ -60,7 +60,7 @@ export default function LessonsCatalog({
         {/* Custom Quick Actions */}
         <button
           onClick={onNavigateToCreator}
-          className="inline-flex items-center gap-sm bg-white border-2 border-primary text-primary hover:bg-surface-container-high py-2.5 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 shrink-0"
+          className="inline-flex items-center gap-2 bg-white border-2 border-primary text-primary hover:bg-surface-container-high py-3 px-5 rounded-2xl font-bold text-sm transition-all active:scale-95 shrink-0"
         >
           <PlusCircle className="w-4 h-4 shrink-0" />
           <span>Add Custom Sign</span>
@@ -68,9 +68,9 @@ export default function LessonsCatalog({
       </header>
 
       {/* Category Filters & Desktop Search Bar */}
-      <div className="flex flex-col md:flex-row gap-gutter md:items-center justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
         {/* Category Filter Pills as precisely rendered in mock */}
-        <section className="flex flex-wrap items-center gap-sm">
+        <section className="flex flex-wrap items-center gap-2">
           {categories.map((cat) => {
             const isActive = selectedCategory === cat;
             return (
