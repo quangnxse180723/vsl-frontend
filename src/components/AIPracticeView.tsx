@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary } from '../types';
 import { Camera, CameraOff, Play, ShieldCheck, HelpCircle, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 import { api, EvaluationResponse } from '../services/api';
+import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+
+const HAND_CONNECTIONS: [number, number][] = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17],[0,17],
+];
 
 interface AIPracticeViewProps {
   vocabularyList: Vocabulary[];
@@ -22,6 +32,8 @@ export default function AIPracticeView({
   const [useRealCamera, setUseRealCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const [calibrationStep, setCalibrationStep] = useState<string>('Ready to Calibrate');
   const [progressWidth, setProgressWidth] = useState(0);
 
@@ -38,6 +50,8 @@ export default function AIPracticeView({
   const refVideoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
+  const handLandmarkerRef = useRef<HandLandmarker | null>(null);
+  const [mpReady, setMpReady] = useState(false);
 
   // Update selected sign when prop changes
   useEffect(() => {
@@ -46,6 +60,31 @@ export default function AIPracticeView({
       if (found) setSelectedSign(found);
     }
   }, [initialSelectedSignName, vocabularyList]);
+
+  // Load MediaPipe HandLandmarker once
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+        );
+        const hl = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'GPU',
+          },
+          numHands: 2,
+          runningMode: 'VIDEO',
+        });
+        if (!cancelled) { handLandmarkerRef.current = hl; setMpReady(true); }
+      } catch (e) {
+        console.warn('MediaPipe load failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Force play reference video when selectedSign changes
   useEffect(() => {
@@ -85,101 +124,78 @@ export default function AIPracticeView({
     }
   };
 
-  // Mock neural skeleton hand tracking drawing loop
+  // Real-time hand tracking loop with MediaPipe
   useEffect(() => {
     const canvas = canvasRef.current;
+    const video = videoRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const w = canvas.width;
+    const h = canvas.height;
     let frameId: number;
-    let angle = 0;
 
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      angle += 0.05;
-
-      // Draw futuristic visual tracker bounds
-      ctx.strokeStyle = '#6063ee';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
-
-      // Draw target lock corners
-      const len = 20;
-      const margin = 40;
-      const w = canvas.width;
-      const h = canvas.height;
-
+    const drawCorners = () => {
+      const len = 20, margin = 40;
       ctx.strokeStyle = '#4648d4';
       ctx.lineWidth = 4;
-      
-      // Top Left
-      ctx.beginPath(); ctx.moveTo(margin, margin + len); ctx.lineTo(margin, margin); ctx.lineTo(margin + len, margin); ctx.stroke();
-      // Top Right
-      ctx.beginPath(); ctx.moveTo(w - margin, margin + len); ctx.lineTo(w - margin, margin); ctx.lineTo(w - margin - len, margin); ctx.stroke();
-      // Bottom Left
-      ctx.beginPath(); ctx.moveTo(margin, h - margin - len); ctx.lineTo(margin, h - margin); ctx.lineTo(margin + len, h - margin); ctx.stroke();
-      // Bottom Right
-      ctx.beginPath(); ctx.moveTo(w - margin, h - margin - len); ctx.lineTo(w - margin, h - margin); ctx.lineTo(w - margin - len, h - margin); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(margin, margin+len); ctx.lineTo(margin, margin); ctx.lineTo(margin+len, margin); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w-margin, margin+len); ctx.lineTo(w-margin, margin); ctx.lineTo(w-margin-len, margin); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(margin, h-margin-len); ctx.lineTo(margin, h-margin); ctx.lineTo(margin+len, h-margin); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w-margin, h-margin-len); ctx.lineTo(w-margin, h-margin); ctx.lineTo(w-margin-len, h-margin); ctx.stroke();
+    };
 
-      // If detecting, draw a dynamic neural hand skeleton model overlay
-      if (isDetecting || useRealCamera) {
-        ctx.fillStyle = '#4648d4';
-        
-        // Define base keypoints for hand nodes
-        // Fluctuates slightly to represent genuine computer vision coordinate alignment
-        const pulse = Math.sin(angle) * 3;
-        const wristX = w / 2;
-        const wristY = h - 70;
-        
-        const palmCenter = { x: w / 2 + pulse, y: h / 2 + 10 + pulse };
-
-        // Finger tip nodes coordinates
-        const thumbTip = { x: w / 2 - 60, y: h / 2 - 30 + pulse };
-        const indexTip = { x: w / 2 - 30 + pulse * 0.5, y: h / 2 - 80 + pulse };
-        const middleTip = { x: w / 2 + pulse, y: h / 2 - 90 + Math.cos(angle) * 2 };
-        const ringTip = { x: w / 2 + 30, y: h / 2 - 80 + pulse * 0.8 };
-        const pinkyTip = { x: w / 2 + 60, y: h / 2 - 50 + pulse };
-
-        // Draw joint links
-        ctx.strokeStyle = '#6063ee';
-        ctx.lineWidth = 2.5;
-
-        // Wrist to palm center
-        ctx.beginPath(); ctx.moveTo(wristX, wristY); ctx.lineTo(palmCenter.x, palmCenter.y); ctx.stroke();
-        
-        // Palm center to finger bases
+    const drawHand = (landmarks: {x:number;y:number;z:number}[]) => {
+      // connections
+      ctx.strokeStyle = '#4648d4';
+      ctx.lineWidth = 2.5;
+      for (const [a, b] of HAND_CONNECTIONS) {
         ctx.beginPath();
-        ctx.moveTo(palmCenter.x, palmCenter.y); ctx.lineTo(thumbTip.x, thumbTip.y);
-        ctx.moveTo(palmCenter.x, palmCenter.y); ctx.lineTo(indexTip.x, indexTip.y);
-        ctx.moveTo(palmCenter.x, palmCenter.y); ctx.lineTo(middleTip.x, middleTip.y);
-        ctx.moveTo(palmCenter.x, palmCenter.y); ctx.lineTo(ringTip.x, ringTip.y);
-        ctx.moveTo(palmCenter.x, palmCenter.y); ctx.lineTo(pinkyTip.x, pinkyTip.y);
+        ctx.moveTo(landmarks[a].x * w, landmarks[a].y * h);
+        ctx.lineTo(landmarks[b].x * w, landmarks[b].y * h);
         ctx.stroke();
+      }
+      // nodes
+      landmarks.forEach((lm, i) => {
+        const isTip = [4,8,12,16,20].includes(i);
+        ctx.beginPath();
+        ctx.arc(lm.x * w, lm.y * h, isTip ? 6 : 4, 0, 2 * Math.PI);
+        ctx.fillStyle = i === 0 ? '#ba1a1a' : isTip ? '#38bdf8' : '#2170e4';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+      // wrist coord label
+      const wrist = landmarks[0];
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '10px Courier New';
+      ctx.fillText(`X:${(wrist.x).toFixed(2)} Y:${(wrist.y).toFixed(2)}`, 55, h - 50);
+    };
 
-        // Draw node circles
-        const nodes = [wristX, wristY, palmCenter.x, palmCenter.y, thumbTip.x, thumbTip.y, indexTip.x, indexTip.y, middleTip.x, middleTip.y, ringTip.x, ringTip.y, pinkyTip.x, pinkyTip.y];
-        for (let i = 0; i < nodes.length; i += 2) {
-          ctx.beginPath();
-          ctx.arc(nodes[i], nodes[i+1], i < 4 ? 6 : 4, 0, 2 * Math.PI);
-          ctx.fillStyle = i === 0 ? '#ba1a1a' : '#2170e4';
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1;
-          ctx.stroke();
+    const render = () => {
+      ctx.clearRect(0, 0, w, h);
+      drawCorners();
+
+      if (useRealCamera && video && video.readyState >= 2 && handLandmarkerRef.current) {
+        const results = handLandmarkerRef.current.detectForVideo(video, performance.now());
+        if (results.landmarks?.length) {
+          results.landmarks.forEach(drawHand);
+        } else {
+          // no hand detected
+          ctx.fillStyle = '#767586';
+          ctx.font = '13px inherit';
+          ctx.textAlign = 'center';
+          ctx.fillText('Giơ tay vào khung hình...', w / 2, h / 2);
+          ctx.textAlign = 'left';
         }
-
-        // Draw track info text
-        ctx.fillStyle = '#2170e4';
-        ctx.font = '10px Courier New';
-        ctx.fillText(`COORD [X:${palmCenter.x.toFixed(0)} Y:${palmCenter.y.toFixed(0)}]`, margin + 10, h - margin - 15);
-        ctx.fillText(`ACCURACY: ${(overallScore / 100).toFixed(2)}`, margin + 10, h - margin - 5);
-      } else {
-        // Standby text
+      } else if (!useRealCamera) {
         ctx.fillStyle = '#767586';
-        ctx.font = '14px inherit';
+        ctx.font = '13px inherit';
         ctx.textAlign = 'center';
-        ctx.fillText('Press "Calibrate & Scan" to align neural tracking nodes.', w / 2, h / 2);
+        ctx.fillText('Bật camera để bắt đầu tracking', w / 2, h / 2);
+        ctx.textAlign = 'left';
       }
 
       frameId = requestAnimationFrame(render);
@@ -187,7 +203,7 @@ export default function AIPracticeView({
 
     render();
     return () => cancelAnimationFrame(frameId);
-  }, [isDetecting, useRealCamera, overallScore]);
+  }, [useRealCamera, mpReady]);
 
   // Record from camera for `durationMs` and return the Blob
   const recordCamera = (durationMs: number): Promise<Blob> => {
@@ -209,6 +225,8 @@ export default function AIPracticeView({
     });
   };
 
+  const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
   const triggerSimulation = async () => {
     if (isDetecting) return;
     if (!useRealCamera || !cameraStream) {
@@ -224,12 +242,24 @@ export default function AIPracticeView({
     setProgressWidth(0);
     setEvalError(null);
     setEvalResult(null);
-    setCalibrationStep('Đang ghi hình...');
+
+    // Countdown 3-2-1 để người dùng vào tư thế
+    for (let i = 3; i >= 1; i--) {
+      setCountdown(i);
+      setCalibrationStep(`Chuẩn bị tư thế... ${i}`);
+      await sleep(1000);
+    }
+    setCountdown(null);
+
+    // Bắt đầu ghi hình
+    setIsRecording(true);
+    setCalibrationStep('Đang ghi hình động tác...');
     setProgressWidth(15);
 
     try {
       // 1. Record 3s from camera
       const blob = await recordCamera(3000);
+      setIsRecording(false);
       setCalibrationStep('Đang gửi lên AI model...');
       setProgressWidth(50);
 
@@ -264,6 +294,8 @@ export default function AIPracticeView({
       setProgressWidth(0);
     } finally {
       setIsDetecting(false);
+      setIsRecording(false);
+      setCountdown(null);
     }
   };
 
@@ -327,12 +359,29 @@ export default function AIPracticeView({
               </div>
             </div>
 
+            {/* Countdown Overlay */}
+            {countdown !== null && (
+              <div className="absolute inset-0 bg-neutral-950/75 backdrop-blur-sm z-30 flex flex-col items-center justify-center">
+                <p className="text-white/70 text-sm mb-2 font-semibold">Chuẩn bị động tác...</p>
+                <span className="text-9xl font-extrabold text-primary drop-shadow-lg animate-pulse">{countdown}</span>
+              </div>
+            )}
+
+            {/* Recording Indicator */}
+            {isRecording && (
+              <div className="absolute inset-0 border-4 border-red-500 rounded-2xl z-30 pointer-events-none">
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-600/90 px-3 py-1.5 rounded-full">
+                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+                  <span className="text-white text-xs font-bold tracking-wide">ĐANG GHI HÌNH</span>
+                </div>
+              </div>
+            )}
+
             {/* Loading / Calibration Status Panel Overlay */}
-            {progressWidth > 0 && progressWidth < 100 && (
+            {progressWidth > 0 && progressWidth < 100 && !isRecording && countdown === null && (
               <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center">
                 <RefreshCw className="w-12 h-12 text-primary animate-spin mb-4" />
                 <h4 className="font-headline-md text-lg text-white font-bold">{calibrationStep}</h4>
-                <p className="text-white/60 text-xs mt-1.5 max-w-xs">{progressWidth < 50 ? 'Initializing camera frames...' : 'Iterating coordinate matrices...'}</p>
                 <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden mt-6">
                   <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progressWidth}%` }}></div>
                 </div>
