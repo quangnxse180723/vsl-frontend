@@ -1,26 +1,29 @@
 import React, { useState } from 'react';
-import { User, Vocabulary } from '../types';
+import { User, Vocabulary, Lesson } from '../types';
 import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2 } from 'lucide-react';
 
 interface AdminViewProps {
   users: User[];
   vocabularyList: Vocabulary[];
+  lessons: Lesson[];
   onToggleUserStatus: (userId: string) => void;
-  onAddVocabulary: (newVocab: { name: string; category: string; description: string; file?: File }) => void;
+  onAddVocabulary: (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File }) => void;
   onDeleteVocabulary: (vocabId: string) => void;
 }
 
 export default function AdminView({
   users,
   vocabularyList,
+  lessons,
   onToggleUserStatus,
   onAddVocabulary,
   onDeleteVocabulary
 }: AdminViewProps) {
   // Add vocab fields
   const [vocabName, setVocabName] = useState('');
-  const [vocabCategory, setVocabCategory] = useState('Alphabet');
+  const [vocabCategoryId, setVocabCategoryId] = useState(lessons[0]?.id || '');
   const [vocabDescription, setVocabDescription] = useState('');
+  const [vocabExpectedId, setVocabExpectedId] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
@@ -55,10 +58,19 @@ export default function AdminView({
       alert('Vui lòng điền tên từ vựng!');
       return;
     }
+    if (!vocabCategoryId) {
+      alert('Vui lòng chọn danh mục!');
+      return;
+    }
+    if (uploadedFile && !vocabExpectedId.trim()) {
+      alert('Vui lòng nhập Expected ID (chỉ số class của model AI) khi tải video mẫu!');
+      return;
+    }
     onAddVocabulary({
       name: vocabName,
-      category: vocabCategory,
+      categoryId: Number(vocabCategoryId),
       description: vocabDescription || 'No description provided.',
+      expectedId: uploadedFile ? Number(vocabExpectedId) : undefined,
       file: uploadedFile || undefined
     });
 
@@ -68,6 +80,7 @@ export default function AdminView({
     // Reset Form
     setVocabName('');
     setVocabDescription('');
+    setVocabExpectedId('');
     setUploadedFile(null);
   };
 
@@ -235,15 +248,12 @@ export default function AdminView({
               <label className="text-xs font-semibold text-outline">Library Category</label>
               <select
                 className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none text-on-surface focus:border-primary"
-                value={vocabCategory}
-                onChange={(e) => setVocabCategory(e.target.value)}
+                value={vocabCategoryId}
+                onChange={(e) => setVocabCategoryId(e.target.value)}
               >
-                <option value="Alphabet">Alphabet</option>
-                <option value="Greetings">Greetings</option>
-                <option value="Numbers">Numbers</option>
-                <option value="Family">Family Relationships</option>
-                <option value="Food">At the Restaurant</option>
-                <option value="Feelings">Expressing Emotions</option>
+                {lessons.map(l => (
+                  <option key={l.id} value={l.id}>{l.title}</option>
+                ))}
               </select>
             </div>
 
@@ -274,12 +284,12 @@ export default function AdminView({
             {/* Upload Video reference dropzone */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-outline">Reference File</label>
-              <div 
+              <div
                 className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
-                  isDragging 
-                    ? 'border-primary bg-primary/5' 
-                    : uploadedFile 
-                      ? 'border-green-400 bg-green-50/20' 
+                  isDragging
+                    ? 'border-primary bg-primary/5'
+                    : uploadedFile
+                      ? 'border-green-400 bg-green-50/20'
                       : 'border-outline-variant/60 hover:border-outline'
                 }`}
                 onDragOver={handleDragOver}
@@ -287,11 +297,11 @@ export default function AdminView({
                 onDrop={handleDrop}
                 onClick={() => document.getElementById('admin-file-picker')?.click()}
               >
-                <input 
-                  type="file" 
-                  id="admin-file-picker" 
-                  className="hidden" 
-                  accept="video/*,image/*" 
+                <input
+                  type="file"
+                  id="admin-file-picker"
+                  className="hidden"
+                  accept="video/*"
                   onChange={handleFileChange}
                 />
                 <span className="material-symbols-outlined text-outline text-3xl mb-1.5">
@@ -304,7 +314,24 @@ export default function AdminView({
               </div>
             </div>
 
-            <button 
+            {/* Expected AI class index, required alongside the reference video */}
+            {uploadedFile && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-outline">Expected ID (AI model class index)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={999}
+                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none text-on-surface focus:border-primary"
+                  placeholder="e.g. 61"
+                  value={vocabExpectedId}
+                  onChange={(e) => setVocabExpectedId(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <button
               type="submit"
               className="w-full py-2.5 bg-primary text-on-primary font-bold rounded-xl text-xs shadow hover:bg-primary/95 active-scale flex items-center justify-center gap-1.5"
             >

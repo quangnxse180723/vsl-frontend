@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, BookOpen, Brain, User, Settings, HelpCircle } from 'lucide-react';
-import { UserStats } from '../../types';
+import { UserStats } from '../types';
 
 interface SidebarProps {
   activeTab: string;

@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary } from '../types';
+import { practiceApi } from '../services/api/practiceApi';
 import { Camera, CameraOff, Play, ShieldCheck, HelpCircle, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
 
 interface AIPracticeViewProps {
@@ -22,18 +22,21 @@ export default function AIPracticeView({
   const [useRealCamera, setUseRealCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [calibrationStep, setCalibrationStep] = useState<string>('Ready to Calibrate');
   const [progressWidth, setProgressWidth] = useState(0);
 
-  // Live Score Metrics
-  const [overallScore, setOverallScore] = useState(88);
-  const [handShapeGrade, setHandShapeGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose'>('Excellent');
-  const [orientationGrade, setOrientationGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose'>('Good');
-  const [motionGrade, setMotionGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose'>('Adjust Pose');
+  // Live Score Metrics - null until a real AI evaluation has run
+  const [overallScore, setOverallScore] = useState<number | null>(null);
+  const [handShapeGrade, setHandShapeGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose' | null>(null);
+  const [orientationGrade, setOrientationGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose' | null>(null);
+  const [motionGrade, setMotionGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose' | null>(null);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
   const animationRef = useRef<number | null>(null);
 
   // Update selected sign when prop changes
@@ -161,7 +164,7 @@ export default function AIPracticeView({
         ctx.fillStyle = '#2170e4';
         ctx.font = '10px Courier New';
         ctx.fillText(`COORD [X:${palmCenter.x.toFixed(0)} Y:${palmCenter.y.toFixed(0)}]`, margin + 10, h - margin - 15);
-        ctx.fillText(`ACCURACY: ${(overallScore / 100).toFixed(2)}`, margin + 10, h - margin - 5);
+        ctx.fillText(`ACCURACY: ${overallScore !== null ? (overallScore / 100).toFixed(2) : '--'}`, margin + 10, h - margin - 5);
       } else {
         // Standby text
         ctx.fillStyle = '#767586';
@@ -177,56 +180,88 @@ export default function AIPracticeView({
     return () => cancelAnimationFrame(frameId);
   }, [isDetecting, useRealCamera, overallScore]);
 
-  // Run Calibration / Analysis Simulation
-  const triggerSimulation = () => {
-    if (isDetecting) return;
-    setIsDetecting(true);
-    setProgressWidth(0);
-    setCalibrationStep('Connecting Camera Stream...');
+  // Records a real clip from the webcam and sends it to the backend AI model for scoring.
+  const handleScanAndEvaluate = () => {
+    if (isDetecting || isRecording) return;
 
-    // Calibration steps
-    setTimeout(() => {
-      setCalibrationStep('Detecting bounding boxes...');
-      setProgressWidth(30);
-    }, 600);
+    if (!useRealCamera || !cameraStream) {
+      setCalibrationStep('Activate the web camera first to record a real practice clip.');
+      return;
+    }
 
-    setTimeout(() => {
-      setCalibrationStep('Plotting coordinate nodes...');
-      setProgressWidth(60);
-    }, 1200);
+    if (selectedSign.expectedId !== undefined) {
+      setIsRecording(true);
+      setCalibrationStep('Recording your gesture (3s)...');
+      setProgressWidth(20);
+      
+      const mediaRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      recordedChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        setIsRecording(false);
+        setIsDetecting(true);
+        setCalibrationStep('Uploading and evaluating video...');
+        setProgressWidth(60);
+        
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const file = new File([blob], "practice.webm", { type: 'video/webm' });
+        
+        try {
+          const res = await practiceApi.evaluate(file, selectedSign.expectedId);
+          const evaluation = res.data;
+          
+          setOverallScore(Math.round(evaluation.confidence));
+          
+          if (evaluation.status === 'CORRECT') {
+            setHandShapeGrade('Excellent');
+            setOrientationGrade('Excellent');
+            setMotionGrade('Excellent');
+          } else if (evaluation.status === 'ALMOST_CORRECT') {
+            setHandShapeGrade('Good');
+            setOrientationGrade('Good');
+            setMotionGrade('Good');
+          } else {
+            setHandShapeGrade('Fair');
+            setOrientationGrade('Adjust Pose');
+            setMotionGrade('Fair');
+          }
+          
+          setCalibrationStep(evaluation.message || 'Evaluation complete!');
+          setProgressWidth(100);
+          onRecordResult(selectedSign.name, Math.round(evaluation.confidence));
+        } catch (error) {
+          setCalibrationStep('Evaluation failed');
+          setProgressWidth(100);
+        } finally {
+          setIsDetecting(false);
+        }
+      };
+      
+      mediaRecorder.start();
+      
+      let timeLeft = 3;
+      const interval = setInterval(() => {
+        timeLeft -= 1;
+        setCalibrationStep(`Recording... ${timeLeft}s left`);
+        setProgressWidth(20 + (3 - timeLeft) * 10);
+        if (timeLeft <= 0) clearInterval(interval);
+      }, 1000);
 
-    setTimeout(() => {
-      setCalibrationStep('Validating depth mapping against ' + selectedSign.name + '...');
-      setProgressWidth(85);
-    }, 1800);
+      setTimeout(() => {
+        mediaRecorder.stop();
+      }, 3000);
 
-    setTimeout(() => {
-      // Calculate random high-fidelity score representing real practice
-      const randomScore = Math.floor(Math.random() * 15) + 85; // 85% to 99%
-      setOverallScore(randomScore);
+      return;
+    }
 
-      // Set modular subgrades based on score
-      if (randomScore >= 95) {
-        setHandShapeGrade('Excellent');
-        setOrientationGrade('Excellent');
-        setMotionGrade('Excellent');
-      } else if (randomScore >= 90) {
-        setHandShapeGrade('Excellent');
-        setOrientationGrade('Good');
-        setMotionGrade('Good');
-      } else {
-        setHandShapeGrade('Good');
-        setOrientationGrade('Good');
-        setMotionGrade('Fair');
-      }
-
-      setCalibrationStep('Calibration Perfected!');
-      setProgressWidth(100);
-      setIsDetecting(false);
-
-      // Record to parent recent results database immediately to see dynamic reflection!
-      onRecordResult(selectedSign.name, randomScore);
-    }, 2500);
+    setCalibrationStep('This vocabulary has no expectedId configured yet, cannot evaluate.');
   };
 
   return (
@@ -279,13 +314,13 @@ export default function AIPracticeView({
               <div className="relative w-12 h-12 flex items-center justify-center">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                   <path className="text-surface-variant" strokeDasharray="100, 100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                  <path className="text-primary" strokeDasharray={`${overallScore}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path className="text-primary" strokeDasharray={`${overallScore ?? 0}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                 </svg>
-                <span className="absolute text-xs font-display font-extrabold text-primary">{overallScore}%</span>
+                <span className="absolute text-xs font-display font-extrabold text-primary">{overallScore !== null ? `${overallScore}%` : '--'}</span>
               </div>
               <div className="leading-tight">
                 <p className="text-[10px] text-outline font-extrabold uppercase">Overall Match</p>
-                <p className="text-xs font-bold text-on-surface">{overallScore >= 90 ? 'Mastered!' : 'Calibrating...'}</p>
+                <p className="text-xs font-bold text-on-surface">{overallScore === null ? 'Not scanned yet' : overallScore >= 90 ? 'Mastered!' : 'Calibrating...'}</p>
               </div>
             </div>
 
@@ -311,7 +346,7 @@ export default function AIPracticeView({
               </div>
               <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                 handShapeGrade === 'Excellent' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-              }`}>{handShapeGrade}</span>
+              }`}>{handShapeGrade ?? 'Pending'}</span>
             </div>
 
             <div className={`p-4 rounded-xl border flex justify-between items-center bg-surface-container-lowest shadow-sm ${orientationGrade === 'Excellent' || orientationGrade === 'Good' ? 'border-green-100' : 'border-amber-100'}`}>
@@ -321,7 +356,7 @@ export default function AIPracticeView({
               </div>
               <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                 orientationGrade === 'Excellent' || orientationGrade === 'Good' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>{orientationGrade}</span>
+              }`}>{orientationGrade ?? 'Pending'}</span>
             </div>
 
             <div className={`p-4 rounded-xl border flex justify-between items-center bg-surface-container-lowest shadow-sm ${motionGrade === 'Excellent' || motionGrade === 'Good' ? 'border-green-100' : 'border-amber-100'}`}>
@@ -331,7 +366,7 @@ export default function AIPracticeView({
               </div>
               <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                 motionGrade === 'Excellent' || motionGrade === 'Good' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-              }`}>{motionGrade}</span>
+              }`}>{motionGrade ?? 'Pending'}</span>
             </div>
           </div>
 
@@ -341,9 +376,11 @@ export default function AIPracticeView({
             <div className="space-y-1">
               <h5 className="font-label-bold text-xs text-on-surface">AI Coach Suggestion</h5>
               <p className="text-xs text-on-surface-variant leading-relaxed">
-                {overallScore < 90 
-                  ? "Slightly tilt your palm to the left. The neural grid needs better light contrast on your index knuckle."
-                  : "Excellent posture! Your fingers are positioned flat, palm outward, corresponding precisely to the standardized ASL letter configuration."}
+                {overallScore === null
+                  ? "Activate your web camera and press \"Calibrate & Scan\" to get real-time AI feedback."
+                  : overallScore < 90
+                    ? "Slightly tilt your palm to the left. The neural grid needs better light contrast on your index knuckle."
+                    : "Excellent posture! Your fingers are positioned flat, palm outward, corresponding precisely to the standardized sign configuration."}
               </p>
             </div>
           </div>
@@ -369,7 +406,10 @@ export default function AIPracticeView({
                   const s = vocabularyList.find(v => v.name === e.target.value);
                   if (s) {
                     setSelectedSign(s);
-                    setOverallScore(75 + Math.floor(Math.random() * 10)); // resets slightly
+                    setOverallScore(null);
+                    setHandShapeGrade(null);
+                    setOrientationGrade(null);
+                    setMotionGrade(null);
                   }
                 }}
               >
@@ -401,12 +441,12 @@ export default function AIPracticeView({
             <div className="space-y-3">
               {/* Scan Calibration Button */}
               <button
-                onClick={triggerSimulation}
-                disabled={isDetecting}
+                onClick={handleScanAndEvaluate}
+                disabled={isDetecting || isRecording}
                 className="w-full active-scale py-3.5 bg-primary text-on-primary rounded-xl font-bold text-sm shadow-md hover:bg-primary/95 transition-all flex items-center justify-center gap-2 disabled:bg-primary/50"
               >
                 <span className="material-symbols-outlined text-lg">filter_center_focus</span>
-                {isDetecting ? 'Analyzing coordinates...' : 'Calibrate & Scan'}
+                {isRecording ? 'Recording...' : isDetecting ? 'Analyzing coordinates...' : 'Calibrate & Scan'}
               </button>
 
               {/* Toggle Web Camera Stream */}

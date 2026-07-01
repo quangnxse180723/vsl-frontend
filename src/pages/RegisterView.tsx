@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Mail, Lock, User, UserPlus, ArrowLeft, Sparkles } from 'lucide-react';
 
 interface RegisterViewProps {
-  onRegister: () => void;
+  onRegister: (name: string, email: string, password: string) => void;
   onSwitchToLogin: () => void;
 }
 
@@ -13,7 +13,8 @@ export default function RegisterView({ onRegister, onSwitchToLogin }: RegisterVi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onRegister();
+    if (!name || !email || !password) return;
+    onRegister(name, email, password);
   };
 
   return (

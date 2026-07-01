@@ -1,6 +1,6 @@
 import React from 'react';
 import { Menu, X, Bell, User, Flame } from 'lucide-react';
-import { UserStats } from '../../types';
+import { UserStats } from '../types';
 
 interface HeaderProps {
   activeTab: string;

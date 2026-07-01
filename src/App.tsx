@@ -1,39 +1,215 @@
-import React, { useState } from 'react';
-import { 
-  INITIAL_USERS, 
-  INITIAL_LESSONS, 
-  INITIAL_VOCABULARY, 
-  INITIAL_ACHIEVEMENTS, 
-  INITIAL_RECENT_RESULTS 
-} from './data';
+import React, { useState, useEffect } from 'react';
 import { User, Lesson, Vocabulary, RecentResult, Achievement } from './types';
-import LoginView from './components/LoginView';
-import DashboardView from './components/DashboardView';
-import LessonsView from './components/LessonsView';
-import LessonDetailView from './components/LessonDetailView';
-import AIPracticeView from './components/AIPracticeView';
-import AdminView from './components/AdminView';
-import ProfileView from './components/ProfileView';
+import { UserResponse } from './types/api';
+import { authApi } from './services/api/authApi';
+import { categoryApi } from './services/api/categoryApi';
+import { vocabularyApi, VocabularyResponse } from './services/api/vocabularyApi';
+import { attemptApi } from './services/api/attemptApi';
+import { practiceApi } from './services/api/practiceApi';
+import { adminApi } from './services/api/adminApi';
+import LoginView from './pages/LoginView';
+import RegisterView from './pages/RegisterView';
+import DashboardView from './pages/DashboardView';
+import LessonsView from './pages/LessonsView';
+import LessonDetailView from './pages/LessonDetailView';
+import AIPracticeView from './pages/AIPracticeView';
+import AdminView from './pages/AdminView';
+import ProfileView from './pages/ProfileView';
+
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
+const VOCAB_THUMBNAIL = 'https://lh3.googleusercontent.com/aida-public/AB6AXuCoKYzPFx3Xn0vGAwpzYP9EjYQp3pWd5lx0xWN3n3UtgoIs0U6cytkejgaHc6kUvTPYgciONKdeYXtweQ9rI33qK6MTZvo6g_x4YepsJNyVGFWFhBAuvLldc2lPqi0pPLJYmZvP6oyEIeO0jm1SLnaNVrpF3zf6hEjDPGOORbtmZ4OmXE23r-ZKv4d0D3FkfG1HAbfwMP59fODnS_mfCjG5-U319CjGAKJiEQ_pnb2imWqILcKfBGHaLCNxcVFsZu2jCVSQ904QK7Ml';
+const LESSON_THUMBNAIL = 'https://images.unsplash.com/photo-1621644788102-171bba70eb10?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+
+function mapUserResponseToUser(u: UserResponse): User {
+  return {
+    id: u.userId.toString(),
+    name: u.fullName,
+    email: u.email,
+    status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
+    proficiency: 0,
+    lastActive: 'Just now',
+    avatar: u.avatarUrl || DEFAULT_AVATAR
+  };
+}
+
+function mapVocabularyResponse(v: VocabularyResponse): Vocabulary {
+  return {
+    id: v.id.toString(),
+    name: v.word,
+    category: v.categoryName,
+    attribute: 'Movement',
+    image: VOCAB_THUMBNAIL,
+    description: v.description,
+    videoUrl: v.videoTutorialUrl,
+    expectedId: v.expectedId
+  };
+}
 
 export default function App() {
   // Session States
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // pre-log in Felix to offer a stunning instant experience
-  const [currentUser, setCurrentUser] = useState<User>(INITIAL_USERS[0]); // Felix Chen
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin'>('dashboard');
-  
+
   // Drill-down Detail Lesson State
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [selectedPracticeSignName, setSelectedPracticeSignName] = useState<string>('Letter A');
 
   // Dynamic Data States
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
-  const [lessons, setLessons] = useState<Lesson[]>(INITIAL_LESSONS);
-  const [vocabularyList, setVocabularyList] = useState<Vocabulary[]>(INITIAL_VOCABULARY);
-  const [recentResults, setRecentResults] = useState<RecentResult[]>(INITIAL_RECENT_RESULTS);
-  const [achievements, setAchievements] = useState<Achievement[]>(INITIAL_ACHIEVEMENTS);
+  const [users, setUsers] = useState<User[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [vocabularyList, setVocabularyList] = useState<Vocabulary[]>([]);
+  const [recentResults, setRecentResults] = useState<RecentResult[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   // Global Toasts
   const [toastMessage, setToastMessage] = useState('');
+
+  // Fetches category/vocabulary/attempt/progress and rebuilds derived dashboard state.
+  // Shared by initial load, post-login load, and post-practice refresh so lesson
+  // progress always reflects the real backend state instead of a local guess.
+  const loadDashboardData = async () => {
+    try {
+      const [catRes, vocabRes, attemptRes, progressRes] = await Promise.all([
+        categoryApi.getAll(0, 100),
+        vocabularyApi.getAll(0, 500),
+        attemptApi.getRecentAttempts(5),
+        practiceApi.getMyProgress()
+      ]);
+
+      const vocabList: Vocabulary[] = vocabRes.data.content.map(mapVocabularyResponse);
+
+      const mappedLessons: Lesson[] = catRes.content.map(cat => {
+        const relatedVocab = vocabRes.data.content.filter(v => v.categoryId === cat.id);
+        let progress = 0;
+        let status: 'Not Started' | 'In Progress' | 'Mastered' = 'Not Started';
+        if (relatedVocab.length > 0 && progressRes.data) {
+          const vocabIds = relatedVocab.map(v => v.id);
+          const learnedCount = progressRes.data.filter(p => vocabIds.includes(p.vocabularyId) && p.learningStatus === 'LEARNED').length;
+          const learningCount = progressRes.data.filter(p => vocabIds.includes(p.vocabularyId) && p.learningStatus === 'LEARNING').length;
+
+          if (learnedCount === relatedVocab.length) {
+            progress = 100;
+            status = 'Mastered';
+          } else if (learnedCount > 0 || learningCount > 0) {
+            progress = Math.round((learnedCount / relatedVocab.length) * 100);
+            status = 'In Progress';
+          }
+        }
+
+        return {
+          id: cat.id.toString(),
+          title: cat.name,
+          description: cat.description,
+          duration: '10 min',
+          level: 'Beginner',
+          category: 'Alphabet',
+          image: LESSON_THUMBNAIL,
+          rating: 5,
+          vocabulary: relatedVocab.map(v => v.id.toString()),
+          progress,
+          status,
+          thumbnail: LESSON_THUMBNAIL
+        };
+      });
+
+      // BE's AttemptResponse only carries a boolean isCorrect (no confidence score
+      // for incorrect attempts), so 0/100 is the honest value here, not a guess.
+      const recentResultsMapped: RecentResult[] = attemptRes.data.map(att => ({
+        id: att.attemptId.toString(),
+        sign: att.word,
+        accuracy: att.isCorrect ? 100 : 0,
+        icon: 'front_hand',
+        statusText: att.isCorrect ? 'Correct' : 'Needs Practice',
+        timeAgo: new Date(att.attemptedAt).toLocaleDateString()
+      }));
+
+      setVocabularyList(vocabList);
+      setLessons(mappedLessons);
+      setRecentResults(recentResultsMapped);
+    } catch (error) {
+      console.error("Failed to fetch initial data", error);
+    }
+  };
+
+  // Attempt auto-login if token exists
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
+    authApi.getCurrentUser().then(userRes => {
+      if (userRes.data) {
+        setCurrentUser(mapUserResponseToUser(userRes.data));
+        setIsLoggedIn(true);
+        loadDashboardData();
+      }
+    }).catch(() => {
+      // Token might be expired, user needs to login manually
+      localStorage.removeItem('accessToken');
+    });
+  }, []);
+
+  // Admin functions
+  useEffect(() => {
+    if (currentTab === 'admin' && isLoggedIn) {
+      adminApi.getUsers(0, 50).then(res => {
+        const mappedUsers: User[] = res.content.map(u => ({
+          id: u.userId.toString(),
+          name: u.fullName,
+          email: u.email,
+          status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
+          proficiency: 0, // BE khong tra ve chi so nay, chua co du lieu thuc de hien thi
+          lastActive: new Date(u.createdAt).toLocaleDateString(),
+          avatar: u.avatarUrl || DEFAULT_AVATAR
+        }));
+        setUsers(mappedUsers);
+      }).catch(err => {
+        console.error("Admin access denied or failed", err);
+      });
+    }
+  }, [currentTab, isLoggedIn]);
+
+  const handleToggleUserStatus = async (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    const newStatus = user.status === 'Active' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      await adminApi.toggleUserStatus(Number(userId), newStatus);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus === 'ACTIVE' ? 'Active' : 'Idle' } : u));
+      displayToast(`User status updated to ${newStatus}`);
+    } catch (error) {
+      displayToast('Failed to update user status');
+    }
+  };
+
+  const handleAddVocabulary = async (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File }) => {
+    try {
+      const res = await adminApi.createVocabulary(newVocab.categoryId, newVocab.name, newVocab.description);
+      const createdId = res.data.id;
+
+      if (newVocab.file && newVocab.expectedId !== undefined) {
+        await adminApi.uploadVocabularyVideo(createdId, newVocab.expectedId, newVocab.file);
+      }
+
+      displayToast(`Vocabulary ${newVocab.name} added!`);
+      // Refresh vocab list
+      const vocabRes = await vocabularyApi.getAll(0, 500);
+      setVocabularyList(vocabRes.data.content.map(mapVocabularyResponse));
+    } catch (error) {
+      displayToast('Failed to add vocabulary');
+    }
+  };
+
+  const handleDeleteVocabulary = async (vocabId: string) => {
+    try {
+      await adminApi.deleteVocabulary(Number(vocabId));
+      setVocabularyList(prev => prev.filter(v => v.id !== vocabId));
+      displayToast('Vocabulary deleted');
+    } catch (error) {
+      displayToast('Failed to delete vocabulary');
+    }
+  };
 
   const displayToast = (msg: string) => {
     setToastMessage(msg);
@@ -43,105 +219,85 @@ export default function App() {
   };
 
   // Handler Actions
-  const handleLogin = (email: string) => {
-    // Try to find matching preloaded user, else fallback to custom simulation placeholder
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (foundUser) {
-      setCurrentUser(foundUser);
+  const handleRegister = async (name: string, email: string, password: string) => {
+    try {
+      const response = await authApi.register({ email, password, fullName: name, username: email.split('@')[0] });
+      if (response.data) {
+        displayToast('Account created successfully! Please sign in.');
+        setIsRegistering(false);
+      }
+    } catch (error) {
+      displayToast('Registration failed. Email might already exist.');
+    }
+  };
+
+  const handleLogin = async (email: string, password?: string) => {
+    if (password) {
+      try {
+        const response = await authApi.login({ email, password });
+        if (response.data) {
+          localStorage.setItem('accessToken', response.data.accessToken);
+          localStorage.setItem('refreshToken', response.data.refreshToken);
+
+          // Login response already includes the user profile, no need for a
+          // separate GET /auth/me round-trip right after signing in.
+          const newUser = mapUserResponseToUser(response.data.user);
+          setCurrentUser(newUser);
+          setUsers(prev => prev.some(u => u.id === newUser.id) ? prev : [newUser, ...prev]);
+        }
+        setIsLoggedIn(true);
+        displayToast('Successfully signed in. Welcome back!');
+      } catch (error) {
+        displayToast('Invalid credentials. Please try again.');
+        return; // Important: Stop execution so we don't login
+      }
     } else {
-      const newUser: User = {
-        id: `user-${Date.now()}`,
+      // Guest login fallback when no password is provided
+      const guestId = `guest_${Date.now()}`;
+      const guestUser: User = {
+        id: guestId,
         name: email.split('@')[0],
         email: email,
         status: 'Active',
-        proficiency: 0,
+        proficiency: 15,
         lastActive: 'Just now',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCMy9-SdPa9x8ZD7EDImuDsWy9UD4_M-lCxo2_zZ1TSdh6GMk-_uKkdsooMAVrJvBiVstA-Bz5t4sSpDDbWZ355wNtoSgWxBngZyl3z_0HKazXsSbJvE9v8oAI8Mwcg7SvbjsP4h31I49mQLt1Fh_QfYbKEYJFdrDj6eo_xD04NyH95tkrefWuYywsTcjg9z624nNis-HRUFfPZluEMquSWsiG6zjX4kB0S4M3OyQ4G7bfkTqc6o6dmz7vBPBxL4GTCjj05ZVtwIiCd'
+        avatar: DEFAULT_AVATAR
       };
-      setUsers(prev => [newUser, ...prev]);
-      setCurrentUser(newUser);
+
+      setCurrentUser(guestUser);
+      setUsers(prev => [guestUser, ...prev]);
+      setIsLoggedIn(true);
     }
-    setIsLoggedIn(true);
+
     setCurrentTab('dashboard');
     displayToast('Signmentor: Signed in successfully!');
+
+    // Fetch data after login
+    await loadDashboardData();
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setSelectedLessonId(null);
-    displayToast('Goodbye! You have been signed out.');
-  };
-
-  const handleToggleUserStatus = (userId: string) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        const nextStatus = u.status === 'Active' ? 'Idle' : 'Active';
-        return {
-          ...u,
-          status: nextStatus as 'Active' | 'Idle',
-          lastActive: 'Just now'
-        };
+  const handleLogout = async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        await authApi.logout(refreshToken);
       }
-      return u;
-    }));
-  };
-
-  // Content addition: operational with instant Practice feedback hook!
-  const handleAddVocabulary = (newVocab: { name: string; category: string; description: string; file?: File }) => {
-    const freshId = `vocab-added-${Date.now()}`;
-    const freshItem: Vocabulary = {
-      id: freshId,
-      name: newVocab.name,
-      category: newVocab.category,
-      attribute: 'Movement',
-      image: newVocab.file 
-        ? URL.createObjectURL(newVocab.file) 
-        // Fallback placeholder
-        : 'https://lh3.googleusercontent.com/aida-public/AB6AXuCoKYzPFx3Xn0vGAwpzYP9EjYQp3pWd5lx0xWN3n3UtgoIs0U6cytkejgaHc6kUvTPYgciONKdeYXtweQ9rI33qK6MTZvo6g_x4YepsJNyVGFWFhBAuvLldc2lPqi0pPLJYmZvP6oyEIeO0jm1SLnaNVrpF3zf6hEjDPGOORbtmZ4OmXE23r-ZKv4d0D3FkfG1HAbfwMP59fODnS_mfCjG5-U319CjGAKJiEQ_pnb2imWqILcKfBGHaLCNxcVFsZu2jCVSQ904QK7Ml',
-      description: newVocab.description
-    };
-
-    setVocabularyList(prev => [freshItem, ...prev]);
-    displayToast(`Library Updated! Added "${newVocab.name}" successfully.`);
-  };
-
-  const handleDeleteVocabulary = (vocabId: string) => {
-    const deletedItem = vocabularyList.find(v => v.id === vocabId);
-    setVocabularyList(prev => prev.filter(v => v.id !== vocabId));
-    if (deletedItem) {
-      displayToast(`Removed "${deletedItem.name}" from active configuration.`);
+    } catch (error) {
+      console.error("Logout Error:", error);
+    } finally {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      setIsLoggedIn(false);
+      setSelectedLessonId(null);
+      displayToast('Goodbye! You have been signed out.');
     }
   };
 
-  // Add a newly scanned/tested accuracy rating
-  const handleRecordPracticeResult = (signName: string, score: number) => {
-    const freshResult: RecentResult = {
-      id: `res-${Date.now()}`,
-      sign: `ASL '${signName}'`,
-      accuracy: score,
-      icon: 'front_hand',
-      statusText: 'Verified now',
-      timeAgo: 'Just now'
-    };
-
-    setRecentResults(prev => [freshResult, ...prev.slice(0, 4)]);
+  // Called after a real AI evaluation completes: refresh recent results and
+  // lesson progress from the backend instead of faking a local increment.
+  const handleRecordPracticeResult = async (signName: string, score: number) => {
     displayToast(`AI Evaluation Complete! Accuracy: ${score}% on Sign '${signName}'`);
-
-    // Increment corresponding lesson progress in real-time
-    const linkedVocab = vocabularyList.find(v => v.name === signName);
-    if (linkedVocab) {
-      setLessons(prev => prev.map(l => {
-        if (l.vocabulary.includes(linkedVocab.id)) {
-          const nextProgress = Math.min(100, l.progress + Math.floor(Math.random() * 20) + 15);
-          return {
-            ...l,
-            progress: nextProgress,
-            status: nextProgress === 100 ? 'Mastered' : 'In Progress'
-          };
-        }
-        return l;
-      }));
-    }
+    await loadDashboardData();
   };
 
   // Launch AI Practice lab from a custom selected Lesson
@@ -150,16 +306,34 @@ export default function App() {
     setCurrentTab('practice');
   };
 
+  const handleUpdateUser = (updated: User) => {
+    setCurrentUser(updated);
+    setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+  };
+
   const currentActiveLesson = lessons.find(l => l.id === selectedLessonId);
 
   // Sign in conditional block
-  if (!isLoggedIn) {
-    return <LoginView onLogin={handleLogin} />;
+  if (!isLoggedIn || !currentUser) {
+    if (isRegistering) {
+      return (
+        <RegisterView
+          onRegister={handleRegister}
+          onSwitchToLogin={() => setIsRegistering(false)}
+        />
+      );
+    }
+    return (
+      <LoginView
+        onLogin={handleLogin}
+        onSwitchToRegister={() => setIsRegistering(true)}
+      />
+    );
   }
 
   return (
     <div className="bg-mesh min-h-screen flex flex-col md:flex-row antialiased font-sans">
-      
+
       {/* GLOBAL TOAST BANNER OVERLAY */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 p-4 bg-on-surface text-surface text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-outline-variant/30 animate-pulse">
@@ -277,7 +451,7 @@ export default function App() {
               <p className="text-[9px] text-outline truncate mt-0.5">{currentUser.email}</p>
             </div>
           </div>
-          <button 
+          <button
             type="button"
             onClick={handleLogout}
             className="p-1 hover:bg-red-50 text-outline hover:text-[#ba1a1a] rounded-lg transition-colors flex items-center justify-center shrink-0"
@@ -344,18 +518,11 @@ export default function App() {
                 currentUser={currentUser}
                 achievements={achievements}
                 onLogout={handleLogout}
+                onUpdateUser={handleUpdateUser}
               />
             )}
 
-            {currentTab === 'admin' && (
-              <AdminView
-                users={users}
-                vocabularyList={vocabularyList}
-                onToggleUserStatus={handleToggleUserStatus}
-                onAddVocabulary={handleAddVocabulary}
-                onDeleteVocabulary={handleDeleteVocabulary}
-              />
-            )}
+            {currentTab === 'admin' && <AdminView users={users} vocabularyList={vocabularyList} lessons={lessons} onToggleUserStatus={handleToggleUserStatus} onAddVocabulary={handleAddVocabulary} onDeleteVocabulary={handleDeleteVocabulary} />}
           </>
         )}
       </main>

@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Sparkles, Hand } from 'lucide-react';
 
 interface LoginViewProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string, password?: string) => void;
+  onSwitchToRegister: () => void;
 }
 
-export default function LoginView({ onLogin }: LoginViewProps) {
-  const [email, setEmail] = useState('felix@example.com');
-  const [password, setPassword] = useState('password123');
+export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -22,7 +23,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
       setErrorMessage('Vui lòng nhập mật khẩu.');
       return;
     }
-    onLogin(email);
+    onLogin(email, password);
   };
 
   const handleSocialLogin = (platform: string) => {
@@ -226,10 +227,10 @@ export default function LoginView({ onLogin }: LoginViewProps) {
               Don't have an account? 
               <button 
                 type="button" 
-                onClick={() => onLogin('guest@signmentor.com')}
+                onClick={onSwitchToRegister}
                 className="font-label-bold text-primary hover:underline ml-1"
               >
-                Sign in as Guest
+                Create an account
               </button>
             </p>
           </footer>

@@ -8,6 +8,15 @@ export interface User {
   avatar: string;
 }
 
+export interface UserStats {
+  xp: number;
+  level: number;
+  lessonsCompleted: number;
+  practiceTimeMinutes: number;
+  streakDays: number;
+  achievements: Achievement[];
+}
+
 export type LessonCategory = 'Alphabet' | 'Greetings' | 'Numbers' | 'Family' | 'Food' | 'Feelings';
 
 export interface Lesson {
@@ -21,11 +30,19 @@ export interface Lesson {
   description: string;
   duration: string;
   rating: number;
-  breadcrumbs: string[];
+  breadcrumbs?: string[];
   tips?: string;
   mistakes?: string;
   vocabulary: string[]; // references of vocab IDs
+  steps?: any[];
+  quizQuestions?: any[];
+  letterTarget?: string;
+  imageUrl?: string;
+  signGuide?: string;
+  difficulty?: string;
 }
+
+export type QuizQuestion = any;
 
 export interface Vocabulary {
   id: string;
@@ -34,6 +51,8 @@ export interface Vocabulary {
   attribute: string;
   image: string;
   description: string;
+  videoUrl?: string;
+  expectedId: number;
 }
 
 export interface Achievement {
