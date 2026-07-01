@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary } from '../types';
 import { Camera, CameraOff, Play, ShieldCheck, HelpCircle, RefreshCw, AlertCircle, Sparkles } from 'lucide-react';
+import { api, EvaluationResponse } from '../services/api';
 
 interface AIPracticeViewProps {
   vocabularyList: Vocabulary[];
@@ -25,13 +26,16 @@ export default function AIPracticeView({
   const [progressWidth, setProgressWidth] = useState(0);
 
   // Live Score Metrics
-  const [overallScore, setOverallScore] = useState(88);
+  const [overallScore, setOverallScore] = useState(0);
+  const [evalResult, setEvalResult] = useState<EvaluationResponse | null>(null);
+  const [evalError, setEvalError] = useState<string | null>(null);
   const [handShapeGrade, setHandShapeGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose'>('Excellent');
   const [orientationGrade, setOrientationGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose'>('Good');
   const [motionGrade, setMotionGrade] = useState<'Excellent' | 'Good' | 'Fair' | 'Adjust Pose'>('Adjust Pose');
 
   // Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const refVideoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
 
@@ -42,6 +46,15 @@ export default function AIPracticeView({
       if (found) setSelectedSign(found);
     }
   }, [initialSelectedSignName, vocabularyList]);
+
+  // Force play reference video when selectedSign changes
+  useEffect(() => {
+    const vid = refVideoRef.current;
+    if (vid && selectedSign?.image?.endsWith('.mp4')) {
+      vid.load();
+      vid.play().catch(() => {});
+    }
+  }, [selectedSign]);
 
   // Handle Real Camera stream toggle
   useEffect(() => {
@@ -176,56 +189,82 @@ export default function AIPracticeView({
     return () => cancelAnimationFrame(frameId);
   }, [isDetecting, useRealCamera, overallScore]);
 
-  // Run Calibration / Analysis Simulation
-  const triggerSimulation = () => {
+  // Record from camera for `durationMs` and return the Blob
+  const recordCamera = (durationMs: number): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const stream = cameraStream;
+      if (!stream) { reject(new Error('Camera stream not available')); return; }
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : 'video/webm';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+      recorder.onerror = (e) => reject(e);
+      recorder.start();
+      setTimeout(() => recorder.stop(), durationMs);
+    });
+  };
+
+  const triggerSimulation = async () => {
     if (isDetecting) return;
+    if (!useRealCamera || !cameraStream) {
+      setEvalError('Hãy bật camera trước khi chạy đánh giá.');
+      return;
+    }
+    if (!selectedSign.expectedId) {
+      setEvalError('Từ vựng này chưa có expectedId — không thể đánh giá.');
+      return;
+    }
+
     setIsDetecting(true);
     setProgressWidth(0);
-    setCalibrationStep('Connecting Camera Stream...');
+    setEvalError(null);
+    setEvalResult(null);
+    setCalibrationStep('Đang ghi hình...');
+    setProgressWidth(15);
 
-    // Calibration steps
-    setTimeout(() => {
-      setCalibrationStep('Detecting bounding boxes...');
-      setProgressWidth(30);
-    }, 600);
+    try {
+      // 1. Record 3s from camera
+      const blob = await recordCamera(3000);
+      setCalibrationStep('Đang gửi lên AI model...');
+      setProgressWidth(50);
 
-    setTimeout(() => {
-      setCalibrationStep('Plotting coordinate nodes...');
-      setProgressWidth(60);
-    }, 1200);
+      // 2. Call real API
+      const res = await api.evaluate(blob, selectedSign.expectedId);
+      const result = res.data;
+      setEvalResult(result);
 
-    setTimeout(() => {
-      setCalibrationStep('Validating depth mapping against ' + selectedSign.name + '...');
-      setProgressWidth(85);
-    }, 1800);
+      // 3. Map result to UI states
+      const score = result.status === 'CORRECT' ? 95
+        : result.status === 'ALMOST_CORRECT' ? 70
+        : 40;
+      setOverallScore(score);
 
-    setTimeout(() => {
-      // Calculate random high-fidelity score representing real practice
-      const randomScore = Math.floor(Math.random() * 15) + 85; // 85% to 99%
-      setOverallScore(randomScore);
-
-      // Set modular subgrades based on score
-      if (randomScore >= 95) {
-        setHandShapeGrade('Excellent');
-        setOrientationGrade('Excellent');
-        setMotionGrade('Excellent');
-      } else if (randomScore >= 90) {
-        setHandShapeGrade('Excellent');
-        setOrientationGrade('Good');
-        setMotionGrade('Good');
+      if (result.status === 'CORRECT') {
+        setHandShapeGrade('Excellent'); setOrientationGrade('Excellent'); setMotionGrade('Excellent');
+      } else if (result.status === 'ALMOST_CORRECT') {
+        setHandShapeGrade('Good'); setOrientationGrade('Good'); setMotionGrade('Fair');
       } else {
-        setHandShapeGrade('Good');
-        setOrientationGrade('Good');
-        setMotionGrade('Fair');
+        setHandShapeGrade('Fair'); setOrientationGrade('Fair'); setMotionGrade('Adjust Pose');
       }
 
-      setCalibrationStep('Calibration Perfected!');
+      setCalibrationStep(
+        result.status === 'CORRECT' ? 'Chính xác!' :
+        result.status === 'ALMOST_CORRECT' ? 'Gần đúng!' : 'Chưa đúng'
+      );
       setProgressWidth(100);
+      onRecordResult(selectedSign.name, score);
+    } catch (err: any) {
+      setEvalError(err.message || 'Lỗi khi gọi API đánh giá.');
+      setCalibrationStep('Lỗi');
+      setProgressWidth(0);
+    } finally {
       setIsDetecting(false);
-
-      // Record to parent recent results database immediately to see dynamic reflection!
-      onRecordResult(selectedSign.name, randomScore);
-    }, 2500);
+    }
   };
 
   return (
@@ -334,18 +373,42 @@ export default function AIPracticeView({
             </div>
           </div>
 
-          {/* Interactive Guidelines Feedback prompt */}
-          <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30 flex items-start gap-3">
-            <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">feedback</span>
-            <div className="space-y-1">
-              <h5 className="font-label-bold text-xs text-on-surface">AI Coach Suggestion</h5>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                {overallScore < 90 
-                  ? "Slightly tilt your palm to the left. The neural grid needs better light contrast on your index knuckle."
-                  : "Excellent posture! Your fingers are positioned flat, palm outward, corresponding precisely to the standardized ASL letter configuration."}
-              </p>
+          {/* AI Evaluation Result */}
+          {evalError && (
+            <div className="p-4 bg-error-container text-on-error-container rounded-xl border border-error/20 flex items-start gap-3">
+              <span className="material-symbols-outlined text-xl shrink-0 mt-0.5">error</span>
+              <p className="text-xs leading-relaxed">{evalError}</p>
             </div>
-          </div>
+          )}
+
+          {evalResult ? (
+            <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+              evalResult.status === 'CORRECT' ? 'bg-green-50 border-green-200 text-green-800' :
+              evalResult.status === 'ALMOST_CORRECT' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+              'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              <span className="material-symbols-outlined text-2xl shrink-0 mt-0.5">
+                {evalResult.status === 'CORRECT' ? 'check_circle' : evalResult.status === 'ALMOST_CORRECT' ? 'info' : 'cancel'}
+              </span>
+              <div className="space-y-1">
+                <h5 className="font-label-bold text-xs uppercase tracking-wide">
+                  {evalResult.status === 'CORRECT' ? 'Chính xác!' : evalResult.status === 'ALMOST_CORRECT' ? 'Gần đúng' : 'Chưa đúng'}
+                </h5>
+                <p className="text-xs leading-relaxed">{evalResult.message}</p>
+                <p className="text-[10px] opacity-70">Confidence: {evalResult.confidence}% · Rank: #{evalResult.rank}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30 flex items-start gap-3">
+              <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">feedback</span>
+              <div className="space-y-1">
+                <h5 className="font-label-bold text-xs text-on-surface">AI Coach</h5>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  Bật camera, chọn từ vựng rồi bấm <strong>Calibrate &amp; Scan</strong> để AI đánh giá động tác của bạn.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Reference guidelines & configuration (4/12 wide) */}
@@ -381,7 +444,23 @@ export default function AIPracticeView({
             {/* Sign reference illustration preview */}
             <div className="space-y-3">
               <div className="h-44 rounded-xl overflow-hidden bg-surface-variant relative border border-outline-variant/30">
-                <img className="w-full h-full object-cover" src={selectedSign.image} alt={selectedSign.name} />
+                {selectedSign.image.endsWith('.mp4') ? (
+                  <video
+                    key={selectedSign.id}
+                    ref={refVideoRef}
+                    className="w-full h-full object-contain bg-black"
+                    src={selectedSign.image}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                    onError={(e) => { const v = e.target as HTMLVideoElement; console.error('[RefVideo] code:', v.error?.code, 'msg:', v.error?.message, 'src:', v.src); }}
+                    onCanPlay={() => { refVideoRef.current?.play().catch(console.error); }}
+                  />
+                ) : (
+                  <img className="w-full h-full object-cover" src={selectedSign.image} alt={selectedSign.name} />
+                )}
                 <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-black/60 backdrop-blur-md text-white text-[10px] rounded-lg">
                   Standardized reference
                 </div>
@@ -405,8 +484,13 @@ export default function AIPracticeView({
                 className="w-full active-scale py-3.5 bg-primary text-on-primary rounded-xl font-bold text-sm shadow-md hover:bg-primary/95 transition-all flex items-center justify-center gap-2 disabled:bg-primary/50"
               >
                 <span className="material-symbols-outlined text-lg">filter_center_focus</span>
-                {isDetecting ? 'Analyzing coordinates...' : 'Calibrate & Scan'}
+                {isDetecting ? 'Đang phân tích...' : 'Calibrate & Scan'}
               </button>
+              {!useRealCamera && (
+                <p className="text-[10px] text-on-surface-variant text-center">
+                  ⚠️ Cần bật camera để AI đánh giá
+                </p>
+              )}
 
               {/* Toggle Web Camera Stream */}
               <button

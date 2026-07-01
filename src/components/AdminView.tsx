@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { User, Vocabulary } from '../types';
+import { BECategory } from '../services/api';
 import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2 } from 'lucide-react';
 
 interface AdminViewProps {
   users: User[];
   vocabularyList: Vocabulary[];
+  categories: BECategory[];
   onToggleUserStatus: (userId: string) => void;
   onAddVocabulary: (newVocab: { name: string; category: string; description: string; file?: File }) => void;
   onDeleteVocabulary: (vocabId: string) => void;
@@ -13,13 +15,14 @@ interface AdminViewProps {
 export default function AdminView({
   users,
   vocabularyList,
+  categories,
   onToggleUserStatus,
   onAddVocabulary,
   onDeleteVocabulary
 }: AdminViewProps) {
   // Add vocab fields
   const [vocabName, setVocabName] = useState('');
-  const [vocabCategory, setVocabCategory] = useState('Alphabet');
+  const [vocabCategory, setVocabCategory] = useState(() => categories[0]?.name || 'Alphabet');
   const [vocabDescription, setVocabDescription] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -238,12 +241,20 @@ export default function AdminView({
                 value={vocabCategory}
                 onChange={(e) => setVocabCategory(e.target.value)}
               >
-                <option value="Alphabet">Alphabet</option>
-                <option value="Greetings">Greetings</option>
-                <option value="Numbers">Numbers</option>
-                <option value="Family">Family Relationships</option>
-                <option value="Food">At the Restaurant</option>
-                <option value="Feelings">Expressing Emotions</option>
+                {categories.length > 0 ? (
+                  categories.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))
+                ) : (
+                  <>
+                    <option value="Alphabet">Alphabet</option>
+                    <option value="Greetings">Greetings</option>
+                    <option value="Numbers">Numbers</option>
+                    <option value="Family">Family</option>
+                    <option value="Food">Food</option>
+                    <option value="Feelings">Feelings</option>
+                  </>
+                )}
               </select>
             </div>
 

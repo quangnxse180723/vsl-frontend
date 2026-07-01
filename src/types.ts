@@ -34,6 +34,7 @@ export interface Vocabulary {
   attribute: string;
   image: string;
   description: string;
+  expectedId?: number;
 }
 
 export interface Achievement {
