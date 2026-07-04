@@ -146,6 +146,12 @@ export const api = {
     );
   },
 
+  getPracticeStats: () =>
+    request<ApiResp<PracticeStats>>('/api/practice/stats'),
+
+  getAchievements: () =>
+    request<ApiResp<AchievementItem[]>>('/api/practice/achievements'),
+
   evaluate: (videoBlob: Blob, expectedId: number) => {
     const formData = new FormData();
     formData.append('video', videoBlob, 'practice.webm');
@@ -155,6 +161,25 @@ export const api = {
     );
   },
 };
+
+export interface PracticeStats {
+  totalAttempts: number;
+  correctAttempts: number;
+  learnedCount: number;
+  totalVocabs: number;
+  accuracyRate: number;
+  proficiency: number;
+}
+
+export interface AchievementItem {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  iconKey: string;
+  unlocked: boolean;
+  unlockedAt: string | null;
+}
 
 export interface EvaluationResponse {
   status: 'CORRECT' | 'ALMOST_CORRECT' | 'INCORRECT';
