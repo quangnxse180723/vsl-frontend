@@ -39,7 +39,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
       setFullName(profile.fullName);
       setProfileLoaded(true);
     }).catch(() => {
-      setErrorMessage('Could not load profile details from the server.');
+      setErrorMessage('Không thể tải thông tin hồ sơ từ máy chủ.');
     });
   }, []);
 
@@ -59,9 +59,9 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
     try {
       const updated = await userApi.updateProfile({ username, email, fullName });
       onUpdateUser({ ...currentUser, name: updated.fullName, email: updated.email });
-      flashSuccess('Profile settings saved successfully!');
+      flashSuccess('Đã lưu thông tin hồ sơ thành công!');
     } catch (error) {
-      flashError('Failed to update profile. Please check your details.');
+      flashError('Không thể cập nhật hồ sơ. Vui lòng kiểm tra lại thông tin.');
     } finally {
       setSavingProfile(false);
     }
@@ -70,7 +70,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!oldPassword || !newPassword) {
-      flashError('Please fill in both password fields.');
+      flashError('Vui lòng điền đầy đủ cả hai trường mật khẩu.');
       return;
     }
     setChangingPassword(true);
@@ -78,9 +78,9 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
       await userApi.updatePassword({ oldPassword, newPassword });
       setOldPassword('');
       setNewPassword('');
-      flashSuccess('Password changed successfully!');
+      flashSuccess('Đổi mật khẩu thành công!');
     } catch (error) {
-      flashError('Failed to change password. Check your current password.');
+      flashError('Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu hiện tại.');
     } finally {
       setChangingPassword(false);
     }
@@ -93,29 +93,29 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
       const uploadedUrl = await userApi.uploadAvatar(file);
       const updated = await userApi.updateAvatarUrl(uploadedUrl);
       onUpdateUser({ ...currentUser, avatar: updated.avatarUrl || currentUser.avatar });
-      flashSuccess('Avatar updated successfully!');
+      flashSuccess('Cập nhật ảnh đại diện thành công!');
     } catch (error) {
-      flashError('Failed to upload avatar.');
+      flashError('Không thể tải lên ảnh đại diện.');
     }
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm('Are you sure you want to permanently delete your account? This cannot be undone.')) {
+    if (!window.confirm('Bạn có chắc muốn xóa vĩnh viễn tài khoản này? Hành động này không thể hoàn tác.')) {
       return;
     }
     try {
       await userApi.deleteAccount();
       onLogout();
     } catch (error) {
-      flashError('Failed to delete account.');
+      flashError('Không thể xóa tài khoản.');
     }
   };
 
   return (
     <div className="space-y-8 animate-fade-in text-on-surface">
       <header>
-        <h2 className="font-display text-3xl font-extrabold text-[#111111]">Student Profile</h2>
-        <p className="text-body-md text-on-surface-variant">Configure details, manage preferences, and view earned certifications.</p>
+        <h2 className="font-display text-3xl font-extrabold text-[#111111]">Hồ Sơ Học Viên</h2>
+        <p className="text-body-md text-on-surface-variant">Cập nhật thông tin, quản lý tùy chọn và xem thành tích đã đạt được.</p>
       </header>
 
       {saveSuccess && (
@@ -140,7 +140,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
             <label
               htmlFor="avatar-upload-input"
               className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-              title="Change avatar"
+              title="Đổi ảnh đại diện"
             >
               <Camera className="w-6 h-6 text-white" />
             </label>
@@ -148,7 +148,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           </div>
           <div className="space-y-1">
             <h3 className="font-display text-2xl font-bold text-[#111111]">{currentUser.name}</h3>
-            <p className="text-sm font-semibold text-primary">Level 2 Apprentice • VSL Practitioner</p>
+            <p className="text-sm font-semibold text-primary">Học Viên Cấp 2 • Người Học VSL</p>
             <p className="text-xs text-outline">{currentUser.email}</p>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
             className="px-5 py-2.5 bg-red-50 text-[#ba1a1a] border border-red-200 rounded-xl text-xs font-bold hover:bg-red-100/60 transition-colors flex items-center gap-1.5 active-scale shrink-0"
           >
             <LogOut className="w-4 h-4" />
-            Sign Out
+            Đăng Xuất
           </button>
         </div>
       </section>
@@ -173,13 +173,13 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <span className="material-symbols-outlined text-primary">settings</span>
-              <h3 className="font-display text-lg font-bold">Preferences</h3>
+              <h3 className="font-display text-lg font-bold">Tùy Chọn</h3>
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-5">
               {/* Profile details */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Display Name</label>
+                <label className="text-xs font-semibold text-outline">Tên Hiển Thị</label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
@@ -190,7 +190,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Username</label>
+                <label className="text-xs font-semibold text-outline">Tên Đăng Nhập</label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
@@ -218,8 +218,8 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   <div className="flex items-start gap-3">
                     <span className="material-symbols-outlined text-outline mt-0.5">notifications</span>
                     <div>
-                      <p className="text-xs font-bold text-[#111111]">Daily practice reminders</p>
-                      <p className="text-[10px] text-outline">Receive email alerts on streak renewal.</p>
+                      <p className="text-xs font-bold text-[#111111]">Nhắc nhở luyện tập hàng ngày</p>
+                      <p className="text-[10px] text-outline">Nhận email nhắc nhở khi chuỗi ngày học được gia hạn.</p>
                     </div>
                   </div>
                   <button
@@ -236,8 +236,8 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   <div className="flex items-start gap-3">
                     <span className="material-symbols-outlined text-outline mt-0.5">grid_on</span>
                     <div>
-                      <p className="text-xs font-bold text-[#111111]">HUD Tracking Mesh Lines</p>
-                      <p className="text-[10px] text-outline">Draw neural nodes over Live Feed preview canvas.</p>
+                      <p className="text-xs font-bold text-[#111111]">Lưới Theo Dõi HUD</p>
+                      <p className="text-[10px] text-outline">Hiển thị các điểm mốc AI trên khung hình camera trực tiếp.</p>
                     </div>
                   </div>
                   <button
@@ -254,8 +254,8 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   <div className="flex items-start gap-3">
                     <span className="material-symbols-outlined text-outline mt-0.5">volume_up</span>
                     <div>
-                      <p className="text-xs font-bold text-[#111111]">Voice guidelines assistant</p>
-                      <p className="text-[10px] text-outline">Hear automated audio confirmations when signs are mastered.</p>
+                      <p className="text-xs font-bold text-[#111111]">Trợ lý giọng nói</p>
+                      <p className="text-[10px] text-outline">Nghe thông báo bằng giọng nói khi bạn thành thạo một ký hiệu.</p>
                     </div>
                   </div>
                   <button
@@ -275,7 +275,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 className="w-full py-2.5 bg-primary hover:bg-primary/95 text-on-primary rounded-xl font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5 active-scale disabled:opacity-60"
               >
                 <Save className="w-4 h-4" />
-                {savingProfile ? 'Saving...' : 'Save Preferences'}
+                {savingProfile ? 'Đang lưu...' : 'Lưu Tùy Chọn'}
               </button>
             </form>
           </div>
@@ -284,12 +284,12 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <Shield className="w-5 h-5 text-primary" />
-              <h3 className="font-display text-lg font-bold">Security</h3>
+              <h3 className="font-display text-lg font-bold">Bảo Mật</h3>
             </div>
 
             <form onSubmit={handleChangePassword} className="space-y-3">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Current Password</label>
+                <label className="text-xs font-semibold text-outline">Mật Khẩu Hiện Tại</label>
                 <input
                   type="password"
                   className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
@@ -298,7 +298,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">New Password</label>
+                <label className="text-xs font-semibold text-outline">Mật Khẩu Mới</label>
                 <input
                   type="password"
                   className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
@@ -311,7 +311,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 disabled={changingPassword}
                 className="w-full py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded-xl font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5 active-scale disabled:opacity-60"
               >
-                {changingPassword ? 'Updating...' : 'Change Password'}
+                {changingPassword ? 'Đang cập nhật...' : 'Đổi Mật Khẩu'}
               </button>
             </form>
 
@@ -321,7 +321,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 onClick={handleDeleteAccount}
                 className="w-full py-2.5 bg-red-50 text-[#ba1a1a] border border-red-200 rounded-xl font-bold text-xs hover:bg-red-100/60 transition-colors active-scale"
               >
-                Delete Account
+                Xóa Tài Khoản
               </button>
             </div>
           </div>
@@ -332,7 +332,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <span className="material-symbols-outlined text-primary">emoji_events</span>
-              <h3 className="font-display text-lg font-bold">Achievements Cabinet</h3>
+              <h3 className="font-display text-lg font-bold">Tủ Thành Tích</h3>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

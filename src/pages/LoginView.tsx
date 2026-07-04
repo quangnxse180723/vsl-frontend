@@ -1,241 +1,194 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, Sparkles, Hand } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react';
 
 interface LoginViewProps {
   onLogin: (email: string, password?: string) => void;
   onSwitchToRegister: () => void;
 }
 
+const stardustParticles = Array.from({ length: 25 }).map((_, i) => ({
+  id: i,
+  size: Math.random() * 3 + 1,
+  left: Math.random() * 100,
+  duration: Math.random() * 15 + 10,
+  delay: Math.random() * 10,
+}));
+
 export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setErrorMessage('Vui lòng nhập email.');
-      return;
-    }
-    if (!password) {
-      setErrorMessage('Vui lòng nhập mật khẩu.');
+    if (!email || !password) {
+      setErrorMessage('Vui lòng điền đầy đủ thông tin.');
       return;
     }
     onLogin(email, password);
   };
 
-  const handleSocialLogin = (platform: string) => {
-    onLogin(`${platform.toLowerCase()}user@signmentor.com`);
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
   };
 
   return (
-    <div className="bg-mesh min-h-screen flex items-center justify-center font-body-md text-on-surface p-4 md:p-12 w-full">
-      <main className="w-full max-w-[1100px] flex flex-col md:flex-row bg-surface-container-lowest rounded-2xl shadow-xl overflow-hidden border border-outline-variant/30">
+    <div className="relative h-screen w-screen bg-[#020205] flex items-center justify-center p-4 overflow-hidden selection:bg-indigo-500/30 text-white">
+      
+      {/* HIỆU ỨNG 1: Bụi sao bay lơ lửng */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {stardustParticles.map(p => (
+          <motion.div
+            key={p.id}
+            initial={{ y: '110vh', opacity: 0, x: `${p.left}vw` }}
+            animate={{ y: '-10vh', opacity: [0, 0.8, 0] }}
+            transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'linear' }}
+            className="absolute bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+            style={{ width: p.size, height: p.size }}
+          />
+        ))}
+      </div>
+
+      {/* HIỆU ỨNG 2: Background Cực quang */}
+      <motion.div 
+        animate={{ scale: [1, 1.1, 1], rotate: [0, 90, 0] }}
+        transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+        className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(79,70,229,0.15) 0%, rgba(79,70,229,0) 70%)' }}
+      />
+      <motion.div 
+        animate={{ scale: [1, 1.2, 1], y: [0, -50, 0] }}
+        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute bottom-[-10%] right-[-5%] w-[50vw] h-[50vw] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(59,130,246,0) 70%)' }}
+      />
+
+      {/* Container chính */}
+      <div className="relative z-10 w-full max-w-[900px] max-h-[95vh] flex flex-col md:flex-row rounded-[2rem] overflow-hidden border border-white/20 shadow-2xl bg-white/[0.02] backdrop-blur-lg">
         
-        {/* Left Side: Brand Visual Section */}
-        <section className="hidden md:flex md:w-1/2 bg-primary-container p-10 flex-col justify-between relative overflow-hidden text-on-primary-container">
-          {/* Decorative Patterns */}
-          <div className="absolute top-[-100px] right-[-100px] w-64 h-64 bg-white/10 rounded-full blur-[100px]"></div>
-          <div className="absolute bottom-[-50px] left-[-50px] w-48 h-48 bg-primary/20 rounded-full blur-[80px]"></div>
+        {/* Cột trái: Artwork (Đã bỏ hiệu ứng thụt ra thụt vô, khôi phục lại cố định) */}
+        <div className="hidden md:flex md:w-1/2 p-8 flex-col justify-center relative z-10 border-r border-white/10">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
           
-          <div className="relative z-10">
-            {/* Logo */}
+          <div className="relative z-10 w-full">
             <div className="flex items-center gap-2 mb-12">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center border border-white/30 shadow-md">
-                <span className="material-symbols-outlined text-white text-3xl">sign_language</span>
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20 shadow-inner backdrop-blur-md">
+                <Sparkles className="w-5 h-5 text-indigo-400" />
               </div>
-              <span className="font-headline-md text-2xl font-bold tracking-tight text-white">SignMentor</span>
-            </div>
-
-            <h1 className="font-display text-4xl lg:text-5xl font-extrabold leading-tight mb-6 text-white drop-shadow-sm">
-              Connect with <br /> every gesture.
-            </h1>
-            <p className="font-body-lg text-lg text-white/80 max-w-sm">
-              Master sign language with AI-powered feedback and a community that speaks your language.
-            </p>
-          </div>
-
-          <div className="relative z-10 mt-12">
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 shadow-md">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-white text-2xl">psychology</span>
-                <span className="font-label-bold text-white text-sm">AI Practice Active</span>
-              </div>
-              <p className="text-white/90 text-sm italic">
-                &ldquo;Your hand positions are 92% more accurate this week. Keep up the great work!&rdquo;
-              </p>
-            </div>
-          </div>
-
-          {/* Large decorative hand logo at back */}
-          <div className="absolute bottom-0 right-0 opacity-10 pointer-events-none transform translate-y-1/4 translate-x-1/4">
-            <span className="material-symbols-outlined text-[300px] text-white">waving_hand</span>
-          </div>
-        </section>
-
-        {/* Right Side: LogIn Credentials Form */}
-        <section className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center bg-white">
-          {/* Mobile Welcome Title */}
-          <div className="md:hidden flex items-center gap-2 mb-8">
-            <div className="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined text-2xl">sign_language</span>
-            </div>
-            <span className="font-headline-md text-xl font-bold text-primary">SignMentor</span>
-          </div>
-
-          <header className="mb-8">
-            <h2 className="font-headline-lg text-3xl text-primary mb-2">Welcome back</h2>
-            <p className="font-body-md text-on-surface-variant">Please enter your details to sign in.</p>
-          </header>
-
-          {errorMessage && (
-            <div className="mb-4 p-3 bg-error-container text-on-error-container text-sm rounded-lg font-medium flex items-center gap-2">
-              <span className="material-symbols-outlined text-lg">error</span>
-              {errorMessage}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Field */}
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-bold text-sm text-on-surface-variant" htmlFor="email-input">
-                Email Address
-              </label>
-              <div className="relative group">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-                  mail
-                </span>
-                <input
-                  id="email-input"
-                  className="w-full pl-11 pr-3 py-3 bg-surface-container-low border-2 border-transparent rounded-lg focus:border-primary focus:ring-0 transition-all font-body-md text-on-surface placeholder:text-outline-variant outline-none"
-                  placeholder="name@company.com"
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setErrorMessage('');
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Password Field */}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center">
-                <label className="font-label-bold text-sm text-on-surface-variant" htmlFor="password-input">
-                  Password
-                </label>
-                <a
-                  className="text-xs font-label-bold text-secondary hover:underline"
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    alert('Chức năng khôi phục mật khẩu sẽ gửi email đặt lại mã PIN.');
-                  }}
-                >
-                  Forgot Password?
-                </a>
-              </div>
-              <div className="relative group">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">
-                  lock
-                </span>
-                <input
-                  id="password-input"
-                  className="w-full pl-11 pr-11 py-3 bg-surface-container-low border-2 border-transparent rounded-lg focus:border-primary focus:ring-0 transition-all font-body-md text-on-surface placeholder:text-outline-variant outline-none"
-                  placeholder="••••••••"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setErrorMessage('');
-                  }}
-                />
-                <button
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  <span className="material-symbols-outlined">
-                    {showPassword ? 'visibility_off' : 'visibility'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Remember Me Label */}
-            <div className="flex items-center gap-2">
-              <input
-                className="w-4 h-4 text-primary bg-surface-container-low border-outline-variant rounded focus:ring-primary/20 cursor-pointer"
-                id="remember"
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              <label className="text-xs text-on-surface-variant select-none cursor-pointer" htmlFor="remember">
-                Remember for 30 days
-              </label>
-            </div>
-
-            {/* Sign In Trigger */}
-            <button
-              className="w-full py-3 bg-primary text-on-primary font-label-bold rounded-lg shadow-md active-scale transition-all hover:bg-primary/95 flex items-center justify-center gap-2"
-              type="submit"
-            >
-              Sign In
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative flex items-center py-2">
-            <div className="flex-grow border-t border-outline-variant/30"></div>
-            <span className="flex-shrink mx-3 text-xs text-outline font-medium">Or continue with</span>
-            <div className="flex-grow border-t border-outline-variant/30"></div>
-          </div>
-
-          {/* Social Authentication */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              className="flex items-center justify-center gap-2 py-3 px-4 border border-outline-variant/50 rounded-lg font-label-bold text-on-surface hover:bg-surface-container-high transition-colors active-scale"
-              type="button"
-              onClick={() => handleSocialLogin('Google')}
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"></path>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
-              </svg>
-              Google
-            </button>
-            <button
-              className="flex items-center justify-center gap-2 py-3 px-4 border border-outline-variant/50 rounded-lg font-label-bold text-on-surface hover:bg-surface-container-high transition-colors active-scale"
-              type="button"
-              onClick={() => handleSocialLogin('Apple')}
-            >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 384 512">
-                <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 21.8-88.5 21.8-11.4 0-51.1-20.8-83.6-20.8-42.3 0-82.3 24.3-104.1 62.4-45.2 78.4-11.6 195.1 32.3 258.9 21.4 31 46.8 65.6 80.4 65.1 31.8-.5 44-19.4 82.5-19.4s50.7 19.4 84.1 18.7c34.1-.7 56.4-31.2 77.3-61.9 24.2-35.4 34.2-69.7 34.7-71.4-1.1-.5-66.7-25.6-67.4-103.5zm-64.1-163.6c15.2-18.4 25.1-43.9 22.2-69.4-21.9 1-48.4 14.9-64 33-14.1 16.1-26.3 42.1-22.9 67.1 24.5 1.9 49.3-12.3 64.7-30.7z"></path>
-              </svg>
-              Apple
-            </button>
-          </div>
-
-          <footer className="mt-8 text-center">
-            <p className="text-body-md text-on-surface-variant">
-              Don't have an account? 
-              <button 
-                type="button" 
-                onClick={onSwitchToRegister}
-                className="font-label-bold text-primary hover:underline ml-1"
+              <motion.span 
+                animate={{ opacity: [0.7, 1, 0.7], textShadow: ["0px 0px 2px rgba(255,255,255,0.1)", "0px 0px 12px rgba(255,255,255,0.9)", "0px 0px 2px rgba(255,255,255,0.1)"] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                className="font-display text-xl font-bold tracking-tight text-white"
               >
-                Create an account
-              </button>
+                SignMentor
+              </motion.span>
+            </div>
+
+            <h1 className="font-display text-4xl lg:text-5xl font-extrabold leading-[1.1] mb-4">
+              Làm chủ <br />
+              <motion.span 
+                animate={{ backgroundPosition: ["-200% center", "200% center"] }}
+                transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                style={{ backgroundSize: "200% auto" }}
+                className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-white to-cyan-400 inline-block"
+              >
+                Ngôn Ngữ Ký Hiệu
+              </motion.span>
+            </h1>
+            <p className="text-sm text-white/70 max-w-[250px]">
+              Bước vào không gian học tập tương tác. Luyện tập và hoàn thiện từng cử chỉ với công nghệ AI theo thời gian thực.
             </p>
-          </footer>
-        </section>
-      </main>
+          </div>
+        </div>
+
+        {/* Cột phải: Glass Form */}
+        <div className="w-full md:w-1/2 p-6 md:p-10 flex flex-col justify-center relative z-20 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <motion.div variants={containerVariants} initial="hidden" animate="show" className="max-w-sm w-full mx-auto my-auto relative z-30">
+            
+            <motion.div variants={itemVariants} className="mb-8">
+              <h2 className="font-display text-2xl font-bold mb-1">Cổng Đăng Nhập</h2>
+              <p className="text-white/60 text-xs">Xác thực danh tính để bắt đầu phiên làm việc AI của bạn.</p>
+            </motion.div>
+
+            {errorMessage && (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl flex items-center gap-2">
+                <span className="material-symbols-outlined text-base">warning</span> {errorMessage}
+              </motion.div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4 relative z-20">
+              <motion.div variants={itemVariants} className="space-y-1.5">
+                <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest ml-1">Địa chỉ Email</label>
+                <div className="relative group/input">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setErrorMessage(''); }}
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                    placeholder="nguoidung@email.com"
+                  />
+                </div>
+              </motion.div>
+
+              <motion.div variants={itemVariants} className="space-y-1.5">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Mật khẩu</label>
+                  <a href="#" className="text-[10px] font-semibold text-indigo-300 hover:text-white transition-colors">Quên Mật Khẩu?</a>
+                </div>
+                <div className="relative group/input">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
+                    className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                    placeholder="••••••••"
+                  />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors">
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </motion.div>
+
+              <motion.div variants={itemVariants} className="pt-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  className="w-full relative group/btn overflow-hidden bg-indigo-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-indigo-500 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] text-sm"
+                >
+                  <span className="relative z-10">Đăng Nhập Khám Phá</span>
+                  <ArrowRight className="w-4 h-4 relative z-10 group-hover/btn:translate-x-1 transition-transform" />
+                </motion.button>
+              </motion.div>
+            </form>
+
+            <motion.div variants={itemVariants} className="mt-6 text-center border-t border-white/10 pt-5 relative z-20">
+              <p className="text-white/60 text-xs">
+                Chưa có tài khoản? 
+                <button type="button" onClick={onSwitchToRegister} className="text-white font-bold ml-1.5 hover:text-indigo-300 transition-colors">
+                  Đăng Ký Ngay
+                </button>
+              </p>
+            </motion.div>
+
+          </motion.div>
+        </div>
+      </div>
     </div>
   );
 }

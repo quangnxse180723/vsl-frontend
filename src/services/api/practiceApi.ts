@@ -26,11 +26,15 @@ export const practiceApi = {
     const formData = new FormData();
     formData.append('video', videoFile);
     formData.append('expectedId', expectedId.toString());
-    
+
+    // The AI model can take well over a minute on a cold start (first inference
+    // after the backend restarts). Without an explicit timeout, axios has none
+    // by default and the UI would just hang forever on a stuck/slow request.
     return axiosClient.post('/practice/evaluate', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 110000,
     });
   }
 };

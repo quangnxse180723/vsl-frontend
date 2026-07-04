@@ -17,7 +17,7 @@ import AdminView from './pages/AdminView';
 import ProfileView from './pages/ProfileView';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
-const VOCAB_THUMBNAIL = 'https://lh3.googleusercontent.com/aida-public/AB6AXuCoKYzPFx3Xn0vGAwpzYP9EjYQp3pWd5lx0xWN3n3UtgoIs0U6cytkejgaHc6kUvTPYgciONKdeYXtweQ9rI33qK6MTZvo6g_x4YepsJNyVGFWFhBAuvLldc2lPqi0pPLJYmZvP6oyEIeO0jm1SLnaNVrpF3zf6hEjDPGOORbtmZ4OmXE23r-ZKv4d0D3FkfG1HAbfwMP59fODnS_mfCjG5-U319CjGAKJiEQ_pnb2imWqILcKfBGHaLCNxcVFsZu2jCVSQ904QK7Ml';
+const VOCAB_THUMBNAIL = 'https://images.unsplash.com/photo-1543269865-cbf427effbad?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
 const LESSON_THUMBNAIL = 'https://images.unsplash.com/photo-1621644788102-171bba70eb10?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
 
 function mapUserResponseToUser(u: UserResponse): User {
@@ -27,7 +27,7 @@ function mapUserResponseToUser(u: UserResponse): User {
     email: u.email,
     status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
     proficiency: 0,
-    lastActive: 'Just now',
+    lastActive: 'Vừa xong',
     avatar: u.avatarUrl || DEFAULT_AVATAR
   };
 }
@@ -37,8 +37,8 @@ function mapVocabularyResponse(v: VocabularyResponse): Vocabulary {
     id: v.id.toString(),
     name: v.word,
     category: v.categoryName,
-    attribute: 'Movement',
-    image: VOCAB_THUMBNAIL,
+    attribute: 'Chuyển động',
+    image: v.imageUrl || VOCAB_THUMBNAIL,
     description: v.description,
     videoUrl: v.videoTutorialUrl,
     expectedId: v.expectedId
@@ -54,7 +54,7 @@ export default function App() {
 
   // Drill-down Detail Lesson State
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
-  const [selectedPracticeSignName, setSelectedPracticeSignName] = useState<string>('Letter A');
+  const [selectedPracticeSignName, setSelectedPracticeSignName] = useState<string | undefined>(undefined);
 
   // Dynamic Data States
   const [users, setUsers] = useState<User[]>([]);
@@ -102,15 +102,15 @@ export default function App() {
           id: cat.id.toString(),
           title: cat.name,
           description: cat.description,
-          duration: '10 min',
+          duration: '10 phút',
           level: 'Beginner',
-          category: 'Alphabet',
-          image: LESSON_THUMBNAIL,
+          category: cat.name,
+          image: cat.imageUrl || LESSON_THUMBNAIL,
           rating: 5,
           vocabulary: relatedVocab.map(v => v.id.toString()),
           progress,
           status,
-          thumbnail: LESSON_THUMBNAIL
+          thumbnail: cat.imageUrl || LESSON_THUMBNAIL
         };
       });
 
@@ -121,7 +121,7 @@ export default function App() {
         sign: att.word,
         accuracy: att.isCorrect ? 100 : 0,
         icon: 'front_hand',
-        statusText: att.isCorrect ? 'Correct' : 'Needs Practice',
+        statusText: att.isCorrect ? 'Chính xác' : 'Cần luyện thêm',
         timeAgo: new Date(att.attemptedAt).toLocaleDateString()
       }));
 
@@ -151,22 +151,29 @@ export default function App() {
   }, []);
 
   // Admin functions
+  const loadAdminUsers = async () => {
+    try {
+      const res = await adminApi.getUsers(0, 50);
+      const mappedUsers: User[] = res.content.map(u => ({
+        id: u.userId.toString(),
+        name: u.fullName,
+        email: u.email,
+        status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
+        proficiency: 0, // BE khong tra ve chi so nay, chua co du lieu thuc de hien thi
+        lastActive: new Date(u.createdAt).toLocaleDateString(),
+        avatar: u.avatarUrl || DEFAULT_AVATAR,
+        username: u.username,
+        role: u.role === 'ADMIN' ? 'ADMIN' : 'USER'
+      }));
+      setUsers(mappedUsers);
+    } catch (err) {
+      console.error("Admin access denied or failed", err);
+    }
+  };
+
   useEffect(() => {
     if (currentTab === 'admin' && isLoggedIn) {
-      adminApi.getUsers(0, 50).then(res => {
-        const mappedUsers: User[] = res.content.map(u => ({
-          id: u.userId.toString(),
-          name: u.fullName,
-          email: u.email,
-          status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
-          proficiency: 0, // BE khong tra ve chi so nay, chua co du lieu thuc de hien thi
-          lastActive: new Date(u.createdAt).toLocaleDateString(),
-          avatar: u.avatarUrl || DEFAULT_AVATAR
-        }));
-        setUsers(mappedUsers);
-      }).catch(err => {
-        console.error("Admin access denied or failed", err);
-      });
+      loadAdminUsers();
     }
   }, [currentTab, isLoggedIn]);
 
@@ -177,13 +184,43 @@ export default function App() {
     try {
       await adminApi.toggleUserStatus(Number(userId), newStatus);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus === 'ACTIVE' ? 'Active' : 'Idle' } : u));
-      displayToast(`User status updated to ${newStatus}`);
+      displayToast(`Đã cập nhật trạng thái người dùng thành ${newStatus === 'ACTIVE' ? 'Hoạt động' : 'Ngừng hoạt động'}`);
     } catch (error) {
-      displayToast('Failed to update user status');
+      displayToast('Không thể cập nhật trạng thái người dùng');
     }
   };
 
-  const handleAddVocabulary = async (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File }) => {
+  const handleCreateUser = async (payload: { username: string; email: string; password: string; fullName: string; role: 'USER' | 'ADMIN'; status: 'ACTIVE' | 'INACTIVE' }) => {
+    try {
+      await adminApi.createUser(payload);
+      displayToast(`Đã tạo người dùng ${payload.username}`);
+      await loadAdminUsers();
+    } catch (error) {
+      displayToast('Không thể tạo người dùng');
+    }
+  };
+
+  const handleAdminUpdateUser = async (userId: string, payload: { fullName?: string; role?: 'USER' | 'ADMIN'; status?: 'ACTIVE' | 'INACTIVE'; password?: string }) => {
+    try {
+      await adminApi.updateUser(Number(userId), payload);
+      displayToast('Đã cập nhật người dùng');
+      await loadAdminUsers();
+    } catch (error) {
+      displayToast('Không thể cập nhật người dùng');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await adminApi.deleteUser(Number(userId));
+      displayToast('Đã vô hiệu hóa người dùng');
+      await loadAdminUsers();
+    } catch (error) {
+      displayToast('Không thể xóa người dùng');
+    }
+  };
+
+  const handleAddVocabulary = async (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File; imageFile?: File }) => {
     try {
       const res = await adminApi.createVocabulary(newVocab.categoryId, newVocab.name, newVocab.description);
       const createdId = res.data.id;
@@ -192,12 +229,16 @@ export default function App() {
         await adminApi.uploadVocabularyVideo(createdId, newVocab.expectedId, newVocab.file);
       }
 
-      displayToast(`Vocabulary ${newVocab.name} added!`);
+      if (newVocab.imageFile) {
+        await adminApi.uploadVocabularyImage(createdId, newVocab.imageFile);
+      }
+
+      displayToast(`Đã thêm từ vựng "${newVocab.name}"!`);
       // Refresh vocab list
       const vocabRes = await vocabularyApi.getAll(0, 500);
       setVocabularyList(vocabRes.data.content.map(mapVocabularyResponse));
     } catch (error) {
-      displayToast('Failed to add vocabulary');
+      displayToast('Không thể thêm từ vựng');
     }
   };
 
@@ -205,9 +246,9 @@ export default function App() {
     try {
       await adminApi.deleteVocabulary(Number(vocabId));
       setVocabularyList(prev => prev.filter(v => v.id !== vocabId));
-      displayToast('Vocabulary deleted');
+      displayToast('Đã xóa từ vựng');
     } catch (error) {
-      displayToast('Failed to delete vocabulary');
+      displayToast('Không thể xóa từ vựng');
     }
   };
 
@@ -219,15 +260,15 @@ export default function App() {
   };
 
   // Handler Actions
-  const handleRegister = async (name: string, email: string, password: string) => {
+  const handleRegister = async (name: string, username: string, email: string, password: string) => {
     try {
-      const response = await authApi.register({ email, password, fullName: name, username: email.split('@')[0] });
+      const response = await authApi.register({ email, password, fullName: name, username });
       if (response.data) {
-        displayToast('Account created successfully! Please sign in.');
+        displayToast('Tạo tài khoản thành công! Vui lòng đăng nhập.');
         setIsRegistering(false);
       }
     } catch (error) {
-      displayToast('Registration failed. Email might already exist.');
+      displayToast('Đăng ký thất bại. Email có thể đã được sử dụng.');
     }
   };
 
@@ -246,9 +287,9 @@ export default function App() {
           setUsers(prev => prev.some(u => u.id === newUser.id) ? prev : [newUser, ...prev]);
         }
         setIsLoggedIn(true);
-        displayToast('Successfully signed in. Welcome back!');
+        displayToast('Đăng nhập thành công. Chào mừng trở lại!');
       } catch (error) {
-        displayToast('Invalid credentials. Please try again.');
+        displayToast('Sai thông tin đăng nhập. Vui lòng thử lại.');
         return; // Important: Stop execution so we don't login
       }
     } else {
@@ -260,7 +301,7 @@ export default function App() {
         email: email,
         status: 'Active',
         proficiency: 15,
-        lastActive: 'Just now',
+        lastActive: 'Vừa xong',
         avatar: DEFAULT_AVATAR
       };
 
@@ -270,7 +311,7 @@ export default function App() {
     }
 
     setCurrentTab('dashboard');
-    displayToast('Signmentor: Signed in successfully!');
+    displayToast('SignMentor: Đăng nhập thành công!');
 
     // Fetch data after login
     await loadDashboardData();
@@ -289,21 +330,24 @@ export default function App() {
       localStorage.removeItem('refreshToken');
       setIsLoggedIn(false);
       setSelectedLessonId(null);
-      displayToast('Goodbye! You have been signed out.');
+      displayToast('Tạm biệt! Bạn đã đăng xuất.');
     }
   };
 
   // Called after a real AI evaluation completes: refresh recent results and
   // lesson progress from the backend instead of faking a local increment.
   const handleRecordPracticeResult = async (signName: string, score: number) => {
-    displayToast(`AI Evaluation Complete! Accuracy: ${score}% on Sign '${signName}'`);
+    displayToast(`Đánh giá AI hoàn tất! Độ chính xác: ${score}% với ký hiệu "${signName}"`);
     await loadDashboardData();
   };
 
   // Launch AI Practice lab from a custom selected Lesson
   const handleLaunchPracticeAndFocus = (lessonId: string, initialSignName?: string) => {
-    setSelectedPracticeSignName(initialSignName || 'Letter A');
+    setSelectedPracticeSignName(initialSignName);
     setCurrentTab('practice');
+    // selectedLessonId takes precedence over currentTab in the main view switch below,
+    // so it must be cleared here or the practice tab would never actually show.
+    setSelectedLessonId(null);
   };
 
   const handleUpdateUser = (updated: User) => {
@@ -352,7 +396,7 @@ export default function App() {
             </div>
             <div>
               <span className="font-display font-bold text-xl text-primary leading-none block">SignMentor</span>
-              <p className="text-[10px] text-outline font-semibold">AI Sign Learning</p>
+              <p className="text-[10px] text-outline font-semibold">Học Ngôn Ngữ Ký Hiệu Cùng AI</p>
             </div>
           </div>
 
@@ -371,7 +415,7 @@ export default function App() {
               }`}
             >
               <span className="material-symbols-outlined text-lg">dashboard</span>
-              <span className="md:inline">Dashboard</span>
+              <span className="md:inline">Tổng Quan</span>
             </button>
 
             {/* Lessons link */}
@@ -387,7 +431,7 @@ export default function App() {
               }`}
             >
               <span className="material-symbols-outlined text-lg">school</span>
-              <span className="md:inline">Lessons</span>
+              <span className="md:inline">Bài Học</span>
             </button>
 
             {/* AI Practice link */}
@@ -403,7 +447,7 @@ export default function App() {
               }`}
             >
               <span className="material-symbols-outlined text-lg">psychology</span>
-              <span className="md:inline">AI Practice</span>
+              <span className="md:inline">Luyện Tập AI</span>
             </button>
 
             {/* Profile link */}
@@ -419,7 +463,7 @@ export default function App() {
               }`}
             >
               <span className="material-symbols-outlined text-lg">account_circle</span>
-              <span className="md:inline">Profile</span>
+              <span className="md:inline">Hồ Sơ</span>
             </button>
 
             {/* Admin link */}
@@ -435,7 +479,7 @@ export default function App() {
               }`}
             >
               <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
-              <span className="md:inline">Admin Console</span>
+              <span className="md:inline">Bảng Quản Trị</span>
             </button>
           </nav>
         </div>
@@ -470,14 +514,6 @@ export default function App() {
             vocabList={vocabularyList}
             onBack={() => setSelectedLessonId(null)}
             onLaunchPractice={handleLaunchPracticeAndFocus}
-            onUpdateLessonProgress={(lessonId, progress) => {
-              setLessons(prev => prev.map(l => {
-                if (l.id === lessonId) {
-                  return { ...l, progress, status: progress === 100 ? 'Mastered' : 'In Progress' };
-                }
-                return l;
-              }));
-            }}
           />
         ) : (
           <>
@@ -490,9 +526,18 @@ export default function App() {
                 onNavigateToTab={setCurrentTab}
                 onSelectLesson={setSelectedLessonId}
                 onStartDailyChallenge={() => {
-                  setSelectedPracticeSignName('Letter A');
+                  // No backend concept of a "daily challenge" yet - deterministically
+                  // pick a real vocabulary word for today instead of a fixed fake name.
+                  if (vocabularyList.length > 0) {
+                    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+                    const todayWord = vocabularyList[dayOfYear % vocabularyList.length];
+                    setSelectedPracticeSignName(todayWord.name);
+                    displayToast(`Thử thách hôm nay bắt đầu! Hãy luyện ký hiệu cho từ "${todayWord.name}".`);
+                  } else {
+                    setSelectedPracticeSignName(undefined);
+                    displayToast('Thử thách hôm nay bắt đầu!');
+                  }
                   setCurrentTab('practice');
-                  displayToast('Daily challenge started! Align hand shape for "Letter A" in AI Practice Lab.');
                 }}
               />
             )}
@@ -522,7 +567,20 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'admin' && <AdminView users={users} vocabularyList={vocabularyList} lessons={lessons} onToggleUserStatus={handleToggleUserStatus} onAddVocabulary={handleAddVocabulary} onDeleteVocabulary={handleDeleteVocabulary} />}
+            {currentTab === 'admin' && (
+              <AdminView
+                users={users}
+                vocabularyList={vocabularyList}
+                lessons={lessons}
+                onToggleUserStatus={handleToggleUserStatus}
+                onCreateUser={handleCreateUser}
+                onUpdateUser={handleAdminUpdateUser}
+                onDeleteUser={handleDeleteUser}
+                onAddVocabulary={handleAddVocabulary}
+                onDeleteVocabulary={handleDeleteVocabulary}
+                onRefreshCategories={loadDashboardData}
+              />
+            )}
           </>
         )}
       </main>

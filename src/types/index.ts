@@ -6,6 +6,8 @@ export interface User {
   proficiency: number; // percentage value
   lastActive: string;
   avatar: string;
+  username?: string; // only populated for admin-listed users
+  role?: 'USER' | 'ADMIN'; // only populated for admin-listed users
 }
 
 export interface UserStats {
@@ -17,12 +19,10 @@ export interface UserStats {
   achievements: Achievement[];
 }
 
-export type LessonCategory = 'Alphabet' | 'Greetings' | 'Numbers' | 'Family' | 'Food' | 'Feelings';
-
 export interface Lesson {
   id: string;
   title: string;
-  category: LessonCategory;
+  category: string; // real category name from the backend (Category.name), not a fixed enum
   level: 'Beginner' | 'Intermediate';
   progress: number;
   status: 'Mastered' | 'In Progress' | 'Not Started';

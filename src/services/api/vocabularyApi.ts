@@ -9,6 +9,7 @@ export interface VocabularyResponse {
   word: string;
   description: string;
   videoTutorialUrl: string;
+  imageUrl: string | null;
   expectedId: number;
 }
 

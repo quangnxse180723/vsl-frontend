@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { User, Lesson, RecentResult, Achievement } from '../types';
-import { Sparkles, Play, Award, ChevronRight, TrendingUp, Calendar, Zap, MessageSquare, ArrowRight } from 'lucide-react';
+import { attemptApi, AttemptResponse } from '../services/api/attemptApi';
+import { Zap, Clock, Star, Flame, Award, ArrowRight, X, Play, BookOpen } from 'lucide-react';
+import otterMascot from '../assets/otter-mascot.jpg';
 
 interface DashboardViewProps {
   currentUser: User;
@@ -12,276 +15,514 @@ interface DashboardViewProps {
   onStartDailyChallenge: () => void;
 }
 
+// Bỏ backdrop-blur và dùng bg-white đặc để loại bỏ lag hoàn toàn nhưng vẫn giữ nguyên cảm giác Ceramic (Gốm) bóng bẩy nhờ shadow.
+const ceramicCard = "bg-white border border-slate-100 shadow-[inset_0_4px_6px_rgba(255,255,255,0.9),0_20px_40px_-10px_rgba(203,213,225,0.4)] rounded-[2.5rem] relative overflow-hidden group";
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 30, scale: 0.95 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 250, damping: 25 } }
+};
+
+const ChatBubbleTicker = React.memo(() => {
+  const tips = [
+    "Mỗi ký hiệu bạn học hôm nay là một cây cầu kết nối yêu thương.",
+    "Kiên trì từng chút một, bạn sẽ giỏi hơn chính mình hôm qua.",
+    "Đừng sợ sai — mỗi lần luyện tập là một lần tiến bộ.",
+    "Giữ chuỗi ngày học liên tục để mở khóa huy hiệu Bậc thầy nhé!",
+    "SignMentor AI luôn sẵn sàng đồng hành cùng bạn."
+  ];
+  const [currentTip, setCurrentTip] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTip((prev) => (prev + 1) % tips.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex-1 bg-white px-4 py-3.5 rounded-[1.5rem] rounded-bl-sm border border-slate-100 shadow-[0_10px_25px_-5px_rgba(203,213,225,0.4)] relative mb-2">
+      <div className="h-5 relative overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={currentTip}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="text-slate-600 font-semibold text-sm absolute w-full truncate"
+          >
+            {tips[currentTip]}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+});
+
+const CinematicVideoBackground = React.memo(() => {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  React.useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.defaultMuted = true;
+      videoRef.current.muted = true;
+      videoRef.current.play().catch(e => console.error("Autoplay prevented:", e));
+    }
+  }, []);
+
+  return (
+    <video 
+      ref={videoRef}
+      autoPlay 
+      loop 
+      muted 
+      playsInline 
+      className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none"
+      src="/A2.mp4" 
+    />
+  );
+});
+
 export default function DashboardView({
   currentUser,
   lessons,
   recentResults,
-  achievements,
   onNavigateToTab,
   onSelectLesson,
   onStartDailyChallenge
 }: DashboardViewProps) {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [fullHistory, setFullHistory] = useState<AttemptResponse[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
-  // Recommendations: get first 2 beginner/in-progress lessons
+
+
   const recommendations = lessons.filter(l => l.progress < 100).slice(0, 2);
 
+  const openHistoryModal = async () => {
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const res = await attemptApi.getMyAttempts(0, 20);
+      setFullHistory(res.data.content);
+    } catch (error) {
+      console.error('Failed to load performance history', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-8 animate-fade-in">
-      
-      {/* Welcome Header */}
-      <section className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-1 bg-surface rounded-xl">
-        <div>
-          <p className="text-primary font-semibold text-xs tracking-wider uppercase mb-1">WELCOME BACK</p>
-          <h2 className="font-display text-3xl md:text-4xl font-extrabold text-on-surface">Hello, {currentUser.name}!</h2>
-          <p className="text-body-md text-on-surface-variant mt-1">Ready to master some new signs today?</p>
-        </div>
-        <button 
-          onClick={onStartDailyChallenge}
-          className="active-scale bg-primary hover:bg-primary/95 text-on-primary px-5 py-3 rounded-xl font-semibold shadow-md flex items-center gap-2 self-start md:self-auto"
-        >
-          <span className="material-symbols-outlined text-xl">bolt</span>
-          Start Daily Challenge
-        </button>
-      </section>
-
-      {/* Top Bento Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
-        {/* Learning Progress Card (Left Column) */}
-        <div className="lg:col-span-8 p-6 md:p-8 rounded-2xl bg-surface-container-lowest elevation-1 flex flex-col sm:flex-row items-center gap-6 border border-outline-variant/30">
-          <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
-            {/* Custom SVG Circular Progress */}
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              <circle className="text-surface-container-high" cx="50" cy="50" fill="transparent" r="42" stroke="currentColor" strokeWidth="8" />
-              <circle 
-                className="text-primary" 
-                cx="50" 
-                cy="50" 
-                fill="transparent" 
-                r="42" 
-                stroke="currentColor" 
-                strokeWidth="8" 
-                strokeDasharray="264" 
-                strokeDashoffset="92" // 65% progress (264 * 0.35)
-                strokeLinecap="round" 
-              />
-            </svg>
-            <span className="absolute text-3xl font-display font-extrabold text-primary">65%</span>
-          </div>
-          
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-display text-2xl text-on-surface mb-2 font-bold select-none">Learning Progress</h3>
-            <p className="text-on-surface-variant text-body-md mb-6 leading-relaxed">
-              You're making great progress! Finish 3 more lessons to unlock the Advanced Handshapes module.
-            </p>
-            <button 
-              onClick={() => onNavigateToTab('lessons')}
-              className="active-scale px-6 py-2.5 bg-primary text-on-primary font-semibold rounded-lg shadow-sm hover:bg-primary/95 transition-all text-sm"
-            >
-              Continue Learning
-            </button>
-          </div>
-        </div>
-
-        {/* Daily Practice Streak (Right Column) */}
-        <div className="lg:col-span-4 p-6 rounded-2xl bg-primary text-on-primary elevation-1 flex flex-col justify-between overflow-hidden relative group">
-          <div className="relative z-10">
-            <div className="flex items-center space-x-2 mb-4">
-              <span className="material-symbols-outlined text-2xl fill-none text-on-primary" style={{fontVariationSettings: "'FILL' 1"}}>local_fire_department</span>
-              <span className="font-semibold text-xs tracking-wider uppercase">Daily Streak</span>
-            </div>
-            <h3 className="text-5xl font-extrabold leading-tight mb-2 tracking-tight">5 Days</h3>
-            <p className="text-sm opacity-90">Keep it up! Reach 7 days for a profile status badge.</p>
-          </div>
-          
-          <div className="mt-8 z-10 w-full">
-            <div className="w-full h-2.5 bg-white/20 rounded-full overflow-hidden">
-              <div className="w-[71%] h-full bg-white rounded-full transition-all duration-500"></div>
-            </div>
-          </div>
-          {/* Abstract backdrop */}
-          <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-500"></div>
-        </div>
+    <div className="relative min-h-screen pb-12 w-full">
+      {/* 1. Tối ưu Background: Đổi thành background tĩnh, bỏ mix-blend-multiply và animate liên tục để GPU không bị quá tải */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-pink-200/30 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[60vw] h-[60vw] bg-cyan-200/30 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[40vw] h-[40vw] bg-yellow-200/30 rounded-full blur-[100px]" />
       </div>
 
-      {/* Recommended & Recent Results Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full">
-        {/* Recommended Lessons */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display text-2xl font-bold text-on-surface">Recommended for You</h3>
-            <button 
-              onClick={() => onNavigateToTab('lessons')}
-              className="text-primary font-bold flex items-center hover:underline text-sm gap-1 active-scale"
-            >
-              View All <ArrowRight className="w-4 h-4 ml-0.5" />
-            </button>
-          </div>
+      <motion.div 
+        variants={containerVariants} 
+        initial="hidden" 
+        animate="show" 
+        className="relative z-10 space-y-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 w-full">
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {recommendations.map(lesson => (
-              <div 
-                key={lesson.id}
-                onClick={() => onSelectLesson(lesson.id)}
-                className="group rounded-2xl bg-surface-container-lowest elevation-1 overflow-hidden hover:elevation-2 transition-all cursor-pointer border border-outline-variant/30"
+          {/* WELCOME BENTO - Col span 8 */}
+          <motion.div variants={itemVariants} className="md:col-span-8 border border-white/20 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] rounded-[2.5rem] relative overflow-hidden group p-8 md:p-10 flex flex-col justify-center min-h-[220px] bg-slate-900">
+            {/* Cinematic Video Background (Uniform Dark Overlay) */}
+            <CinematicVideoBackground />
+            {/* Uniform dark overlay to make foreground pop while keeping video visible */}
+            <div className="absolute inset-0 bg-slate-900/60 z-0 pointer-events-none" />
+            
+            <div className="relative z-10 max-w-lg">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 mb-4 backdrop-blur-sm">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-white font-bold text-[10px] tracking-[0.2em] uppercase">Chào mừng trở lại</span>
+              </div>
+              <h1 className="font-display text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight tracking-tight drop-shadow-md">
+                Xin chào, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-indigo-300 bg-[length:200%_auto]">{currentUser.name}</span>
+              </h1>
+              
+              {/* Ticker / Mascot Area */}
+              <div className="flex items-end gap-5 mb-10 max-w-lg">
+                {/* Mascot Avatar (Premium UI Geometric Otter) */}
+                <div className="relative w-28 h-28 shrink-0 z-20">
+                  <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-[0_15px_20px_rgba(0,0,0,0.15)] overflow-visible">
+                    <defs>
+                      <filter id="inner-glow">
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowDiff" />
+                        <feFlood floodColor="white" floodOpacity="0.2" />
+                        <feComposite in2="shadowDiff" operator="in" />
+                        <feComposite in2="SourceGraphic" operator="over" />
+                      </filter>
+                    </defs>
+
+                    {/* Tail */}
+                    <path d="M 60 90 Q 90 120 105 90 Q 90 100 60 90 Z" fill="#6B4423" />
+
+                    {/* Left Arm (Resting back) */}
+                    <rect x="28" y="65" width="14" height="25" rx="7" fill="#8B5A2B" transform="rotate(20 35 77)" />
+
+                    {/* Body */}
+                    <rect x="40" y="50" width="40" height="55" rx="20" fill="#8B5A2B" filter="url(#inner-glow)" />
+                    
+                    {/* Belly */}
+                    <rect x="48" y="60" width="24" height="40" rx="12" fill="#E6C287" />
+
+                    {/* Left Leg */}
+                    <rect x="40" y="95" width="14" height="12" rx="6" fill="#6B4423" />
+                    {/* Right Leg */}
+                    <rect x="66" y="95" width="14" height="12" rx="6" fill="#6B4423" />
+
+                    {/* Ears */}
+                    <circle cx="25" cy="35" r="10" fill="#6B4423" />
+                    <circle cx="95" cy="35" r="10" fill="#6B4423" />
+
+                    {/* Head */}
+                    <rect x="20" y="25" width="80" height="50" rx="25" fill="#8B5A2B" filter="url(#inner-glow)" />
+
+                    {/* Muzzle */}
+                    <rect x="35" y="45" width="50" height="25" rx="12.5" fill="#E6C287" />
+
+                    {/* Nose */}
+                    <rect x="52" y="45" width="16" height="10" rx="5" fill="#2D1C15" />
+
+                    {/* Cheeks */}
+                    <circle cx="42" cy="58" r="4" fill="#FF9999" opacity="0.6" />
+                    <circle cx="78" cy="58" r="4" fill="#FF9999" opacity="0.6" />
+
+                    {/* Eyes (Blinking) */}
+                    <motion.g
+                      style={{ transformOrigin: "60px 40px" }}
+                      animate={{ scaleY: [1, 0.1, 1] }}
+                      transition={{ duration: 0.25, repeat: Infinity, repeatDelay: 3.5, ease: "easeInOut" }}
+                    >
+                      <circle cx="45" cy="40" r="4.5" fill="#2D1C15" />
+                      <circle cx="75" cy="40" r="4.5" fill="#2D1C15" />
+                      <circle cx="43.5" cy="38.5" r="1.5" fill="white" />
+                      <circle cx="73.5" cy="38.5" r="1.5" fill="white" />
+                    </motion.g>
+
+                    {/* Mouth */}
+                    <path d="M 52 58 Q 60 64 68 58" stroke="#2D1C15" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+
+                    {/* Graduation Cap */}
+                    <path d="M 45 20 L 45 28 C 45 32, 75 32, 75 28 L 75 20 Z" fill="#0F172A" />
+                    <polygon points="60,5 85,15 60,25 35,15" fill="#1E293B" />
+                    <line x1="60" y1="15" x2="75" y2="28" stroke="#FBBF24" strokeWidth="2" />
+                    <circle cx="75" cy="28" r="2" fill="#FBBF24" />
+
+                    {/* Right Arm (Waving!) */}
+                    <motion.g
+                      style={{ transformOrigin: "87px 62px" }}
+                      animate={{ rotate: [0, 60, -10, 60, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+                    >
+                      <rect x="80" y="55" width="14" height="30" rx="7" fill="#8B5A2B" filter="url(#inner-glow)" />
+                      <circle cx="87" cy="62" r="3" fill="#6B4423" opacity="0.3" />
+                    </motion.g>
+                  </svg>
+                </div>
+
+                {/* Chat Bubble Ticker */}
+                <ChatBubbleTicker />
+              </div>
+              
+              <motion.button 
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={onStartDailyChallenge}
+                className="relative overflow-hidden bg-white text-indigo-600 px-8 py-4 rounded-2xl font-extrabold shadow-[0_10px_20px_rgba(99,102,241,0.15),inset_0_-4px_0_rgba(226,232,240,0.6)] hover:shadow-[0_15px_25px_rgba(99,102,241,0.25),inset_0_-4px_0_rgba(226,232,240,0.6)] transition-all flex items-center gap-3 border border-slate-100"
               >
-                <div className="h-40 bg-surface-variant relative overflow-hidden">
-                  <img 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                    src={lesson.image} 
-                    alt={lesson.title} 
+                <Zap className="w-5 h-5 text-indigo-500 fill-indigo-100" />
+                <span>Bắt Đầu Thử Thách Hôm Nay</span>
+              </motion.button>
+            </div>
+          </motion.div>
+
+          {/* STREAK BENTO - Col span 4 */}
+          <motion.div variants={itemVariants} className={`md:col-span-4 ${ceramicCard} p-8 flex flex-col justify-between items-center text-center min-h-[220px]`}>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-orange-400/10 blur-[30px] pointer-events-none rounded-full" />
+            
+            <div className="relative z-10 w-full flex justify-between items-center mb-6">
+              <span className="text-slate-400 font-bold text-[10px] tracking-[0.2em] uppercase">Chuỗi Ngày Học</span>
+              <div className="p-2 bg-orange-50 rounded-xl">
+                <Flame className="w-4 h-4 text-orange-500" />
+              </div>
+            </div>
+
+            <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
+              {/* Giảm nhẹ animation: Bỏ drop shadow filter animate nặng, chỉ giữ di chuyển lên xuống */}
+              <motion.div 
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                className="mb-2"
+              >
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="url(#flame-grad)" stroke="url(#flame-stroke)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-flame">
+                  <defs>
+                    <linearGradient id="flame-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+                      <stop offset="0%" stopColor="#ea580c" />
+                      <stop offset="50%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#fbbf24" />
+                    </linearGradient>
+                    <linearGradient id="flame-stroke" x1="0%" y1="100%" x2="0%" y2="0%">
+                      <stop offset="0%" stopColor="#c2410c" />
+                      <stop offset="100%" stopColor="#fde047" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+                </svg>
+              </motion.div>
+              <h3 className="text-5xl font-display font-extrabold text-slate-800 tracking-tighter">
+                5 <span className="text-xl text-slate-400 font-bold uppercase tracking-widest">Ngày</span>
+              </h3>
+            </div>
+
+            <div className="w-full mt-6 relative z-10">
+              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-orange-400 to-yellow-400 rounded-full relative w-[71%]">
+                  {/* Tối ưu ánh kim: Chỉ quét rất cơ bản */}
+                  <motion.div
+                    animate={{ x: ["-100%", "200%"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear", repeatDelay: 2 }}
+                    className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent -skew-x-12"
                   />
-                  <div className="absolute top-3 right-3 px-3 py-1 bg-primary text-on-primary text-xs font-bold rounded-full">
-                    {lesson.level}
-                  </div>
-                </div>
-                <div className="p-5 space-y-3">
-                  <div>
-                    <h4 className="font-headline-md text-lg text-on-surface group-hover:text-primary transition-colors">{lesson.title}</h4>
-                    <p className="text-xs text-on-surface-variant line-clamp-1 mt-1">{lesson.description}</p>
-                  </div>
-                  <div className="flex items-center text-xs text-outline space-x-3 pt-2 border-t border-outline-variant/20">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[16px]">schedule</span> {lesson.duration}
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[16px]">star</span> {lesson.rating}
-                    </span>
-                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          </motion.div>
 
-        {/* Recent Practice Results */}
-        <div className="lg:col-span-4 space-y-6">
-          <h3 className="font-display text-2xl font-bold text-on-surface">Recent Results</h3>
-          <div className="p-6 rounded-2xl bg-surface-container-lowest elevation-1 border border-outline-variant/30 space-y-4">
-            {recentResults.map(res => (
-              <div 
-                key={res.id} 
-                className="flex items-center justify-between p-3 border border-outline-variant/40 rounded-xl bg-surface-container-lowest hover:border-primary transition-colors"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined text-xl">{res.icon}</span>
-                  </div>
-                  <div>
-                    <p className="font-label-bold text-on-surface text-sm">{res.sign}</p>
-                    <p className="text-xs text-on-surface-variant">{res.statusText}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className={`text-base font-bold ${res.accuracy >= 90 ? 'text-green-600' : 'text-primary'}`}>
-                    {res.accuracy}%
-                  </div>
-                  <div className="text-[10px] text-outline">Accuracy</div>
+          {/* PROGRESS BENTO - Col span 5 */}
+          <motion.div variants={itemVariants} className={`md:col-span-5 ${ceramicCard} p-8 flex flex-col min-h-[240px]`}>
+            {/* Tiêu đề góc trên cùng bên trái */}
+            <div className="flex items-center gap-2.5 mb-6 w-full z-10">
+              <div className="w-9 h-9 rounded-full bg-cyan-50 flex items-center justify-center border border-cyan-100">
+                <BookOpen className="w-4 h-4 text-cyan-500" />
+              </div>
+              <h3 className="font-display text-xl text-slate-800 font-bold">Chương Trình Học</h3>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-6 z-10 flex-1">
+              <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-500/10 blur-[30px] pointer-events-none rounded-full" />
+                <svg className="w-full h-full transform -rotate-90 relative z-10" viewBox="0 0 100 100">
+                  <defs>
+                    <linearGradient id="progress-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="100%" stopColor="#22d3ee" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="50" cy="50" fill="transparent" r="40" stroke="#f1f5f9" strokeWidth="8" />
+                  <motion.circle 
+                    cx="50" cy="50" fill="transparent" r="40" 
+                    stroke="url(#progress-grad)" 
+                    strokeWidth="8" 
+                    strokeLinecap="round" 
+                    initial={{ strokeDasharray: "251.2", strokeDashoffset: "251.2" }}
+                    animate={{ strokeDashoffset: "87.92" }}
+                    transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
+                  />
+                </svg>
+                <div className="absolute flex flex-col items-center z-10">
+                  <span className="text-3xl font-display font-extrabold text-slate-800 tracking-tighter">65%</span>
                 </div>
               </div>
-            ))}
-            <button 
-              onClick={() => setShowHistoryModal(true)}
-              className="w-full py-2.5 text-primary text-sm font-bold bg-surface hover:bg-surface-container-high transition-colors rounded-lg border-2 border-transparent hover:border-primary-container"
-            >
-              View Performance History
-            </button>
-          </div>
-        </div>
-      </div>
+              
+              <div className="flex-1 text-center sm:text-left">
+                <p className="text-slate-500 text-sm mb-5 leading-relaxed">
+                  Hoàn thành thêm 3 bài học nữa để mở khóa module <span className="font-bold text-slate-700">Hình Bàn Tay Nâng Cao</span>.
+                </p>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onNavigateToTab('lessons')}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl shadow-md transition-all text-sm flex items-center justify-center gap-2 mx-auto sm:mx-0"
+                >
+                  Tiếp Tục <ArrowRight className="w-4 h-4" />
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
 
-      {/* Level Up CTA Banner */}
-      <section className="mt-8">
-        <div className="bg-surface-container-high p-6 md:p-8 rounded-2xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden border border-outline-variant/20">
-          <div className="relative z-10 max-w-lg space-y-5">
-            <div>
-              <h4 className="font-headline-md text-2xl text-on-surface mb-2">Ready to level up?</h4>
-              <p className="text-on-surface-variant text-sm">
-                Unlock the intermediate "Emergency Signs" module to get real-time webcam feedback and collaborative practice badges.
+          {/* RECOMMENDED BENTO - Col span 7 */}
+          <motion.div variants={itemVariants} className={`md:col-span-7 ${ceramicCard} p-8 flex flex-col justify-between min-h-[240px]`}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-display text-xl font-bold text-slate-800">Đề Xuất Cho Bạn</h3>
+              <button onClick={() => onNavigateToTab('lessons')} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors">
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 flex-1">
+              {recommendations.map((lesson, idx) => (
+                <div 
+                  key={lesson.id}
+                  onClick={() => onSelectLesson(lesson.id)}
+                  className="group relative rounded-2xl bg-white border border-slate-100 shadow-[0_4px_15px_rgba(226,232,240,0.5)] overflow-hidden cursor-pointer flex flex-col hover:shadow-[0_15px_30px_rgba(226,232,240,0.8)] transition-all duration-300 transform hover:-translate-y-1"
+                >
+                  <div className="h-28 relative overflow-hidden">
+                    <img className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" src={lesson.image} alt={lesson.title} />
+                    <div className="absolute inset-0 bg-slate-900/10 group-hover:bg-transparent transition-colors" />
+                    
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-lg transform scale-50 group-hover:scale-100 transition-transform duration-300 ease-out delay-75">
+                        <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
+                      </div>
+                    </div>
+
+                    <div className="absolute top-2 right-2 px-2.5 py-0.5 bg-white text-indigo-600 text-[10px] font-extrabold uppercase tracking-widest rounded-full shadow-sm">
+                      {lesson.level}
+                    </div>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col justify-between bg-white z-10 relative">
+                    <h4 className="font-display font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">{lesson.title}</h4>
+                    <div className="flex items-center text-[11px] text-slate-400 space-x-3 mt-3">
+                      <span className="flex items-center gap-1 font-medium bg-slate-50 px-2 py-1 rounded-md">
+                        <Clock className="w-3 h-3 text-slate-400" /> {lesson.duration}
+                      </span>
+                      <span className="flex items-center gap-1 font-medium bg-slate-50 px-2 py-1 rounded-md">
+                        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> {lesson.rating}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* LEVEL UP BENTO - Col span 7 */}
+          <motion.div variants={itemVariants} className={`md:col-span-7 ${ceramicCard} p-0 flex flex-col sm:flex-row items-center overflow-hidden min-h-[200px]`}>
+            <div className="p-8 sm:w-2/3 flex flex-col justify-center h-full relative z-10">
+              <div className="inline-flex items-center gap-1.5 mb-3">
+                <Award className="w-4 h-4 text-indigo-500" />
+                <span className="text-indigo-600 font-bold text-[10px] tracking-[0.2em] uppercase">Thành Thạo</span>
+              </div>
+              <h4 className="font-display text-2xl font-extrabold text-slate-800 mb-2">Sẵn sàng lên trình?</h4>
+              <p className="text-slate-500 text-sm mb-6 max-w-sm">
+                Mở khóa module <strong className="text-slate-700">Ký Hiệu Khẩn Cấp</strong> để nhận phản hồi AI theo thời gian thực và huy hiệu cộng đồng.
               </p>
-            </div>
-            <div className="flex gap-4">
-              <button 
-                onClick={() => onNavigateToTab('lessons')}
-                className="bg-primary text-on-primary px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/95 active-scale-lg transition-all"
-              >
-                Continue Module
-              </button>
-              <button 
-                onClick={() => onNavigateToTab('lessons')}
-                className="bg-transparent border border-outline text-on-surface px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-surface-container-low transition-colors"
-              >
-                View Curriculum
-              </button>
-            </div>
-          </div>
-          <div className="hidden md:block flex-1 h-48 rounded-xl overflow-hidden shadow-lg border-4 border-white transform rotate-3">
-            <img 
-              className="w-full h-full object-cover" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1q5BKGtXc3O0p0EW7_jOIvIM0_hMt_aerpdhIu2YJXyzdzYQvPAXFMDy1n5gc0D2HmJgTyN6aaEQuPWs0reDEcTmXvwNeh_CsB1C1j1rNT_x9PbMqUNI7S9VZXhQhU306q567cX8E9Pfq8frg6uebajSPbXfOSPzSbqFX4QGNVMlYk5Isxiw5KBUN_hHhKW1rI-jPkRIyph4EgCfwq4jiBC_8m7odnEHKFAnuNTifdm9IpjoRKX6rF2TOv6J3YzWj-ce6TUcgeQYk" 
-              alt="Community group learning sign language" 
-            />
-          </div>
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl"></div>
-        </div>
-      </section>
-
-      {/* Performance History Modal Simulation */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-container-lowest max-w-md w-full rounded-2xl p-6 shadow-2xl space-y-6 border border-outline-variant/30">
-            <header className="flex justify-between items-center border-b border-outline-variant/20 pb-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">assessment</span>
-                <h3 className="font-headline-md text-xl">Performance History</h3>
+              <div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onNavigateToTab('lessons')}
+                  className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md transition-all hover:bg-indigo-500"
+                >
+                  Tiếp Tục Module
+                </motion.button>
               </div>
-              <button 
+            </div>
+            <div className="hidden sm:block sm:w-1/3 h-full relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-white via-transparent to-transparent z-10" />
+              <img
+                className="w-full h-full object-cover scale-105"
+                src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
+                alt="Cộng đồng học ngôn ngữ ký hiệu"
+              />
+            </div>
+          </motion.div>
+
+          {/* RECENT RESULTS BENTO - Col span 5 */}
+          <motion.div variants={itemVariants} className={`md:col-span-5 ${ceramicCard} p-8 flex flex-col min-h-[200px]`}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-display text-xl font-bold text-slate-800">Độ Chính Xác Gần Đây</h3>
+              <button onClick={openHistoryModal} className="text-indigo-500 font-bold text-xs uppercase tracking-wider hover:text-indigo-600 transition-colors">
+                Xem Tất Cả
+              </button>
+            </div>
+            
+            <div className="space-y-3 flex-1">
+              {recentResults.slice(0, 3).map((res, index) => (
+                <div 
+                  key={res.id} 
+                  className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 hover:bg-white border border-transparent hover:border-slate-100 hover:shadow-md transition-all cursor-default group"
+                >
+                  <div className="flex items-center space-x-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-400 group-hover:text-indigo-500 transition-colors">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">{res.sign}</p>
+                      <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">{res.statusText}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-lg font-display font-extrabold ${res.accuracy >= 90 ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                      {res.accuracy}%
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* Performance History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="bg-white max-w-md w-full rounded-[2.5rem] p-8 shadow-2xl border border-slate-100"
+          >
+            <header className="flex justify-between items-center pb-5 mb-2 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                  <Award className="w-6 h-6 text-indigo-500" />
+                </div>
+                <div>
+                  <h3 className="font-display font-extrabold text-2xl text-slate-800">Lịch Sử</h3>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Đánh Giá Từ AI</p>
+                </div>
+              </div>
+              <button
                 onClick={() => setShowHistoryModal(false)}
-                className="p-1 hover:bg-surface-container-high rounded-full transition-colors material-symbols-outlined text-on-surface"
+                className="w-10 h-10 bg-slate-50 hover:bg-slate-100 rounded-full flex items-center justify-center transition-colors text-slate-400 hover:text-slate-600 border border-slate-200"
               >
-                close
+                <X className="w-5 h-5" />
               </button>
             </header>
 
-            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
-              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
-                <div>
-                  <h4 className="font-label-bold text-on-surface">Alphabet A</h4>
-                  <p className="text-xs text-on-surface-variant">Thứ Hai • 3 Thử Nghiệm</p>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+              {historyLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
                 </div>
-                <span className="font-display text-xl text-green-600 font-bold">100%</span>
-              </div>
-              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
-                <div>
-                  <h4 className="font-label-bold text-on-surface">Cụm Từ Chào Hỏi</h4>
-                  <p className="text-xs text-on-surface-variant">Thứ Ba • 5 Thử Nghiệm</p>
-                </div>
-                <span className="font-display text-xl text-primary font-bold">85%</span>
-              </div>
-              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
-                <div>
-                  <h4 className="font-label-bold text-on-surface">Giao Tiếp Cơ Bản</h4>
-                  <p className="text-xs text-on-surface-variant">Thứ Tư • 8 Thử Nghiệm</p>
-                </div>
-                <span className="font-display text-xl text-primary font-bold">88%</span>
-              </div>
-              <div className="p-3 bg-surface-container-low rounded-xl flex justify-between items-center">
-                <div>
-                  <h4 className="font-label-bold text-on-surface">Vui Vẽ (Happy)</h4>
-                  <p className="text-xs text-on-surface-variant">Thứ Năm • 2 Thử Nghiệm</p>
-                </div>
-                <span className="font-display text-xl text-green-600 font-bold">92%</span>
-              </div>
+              ) : fullHistory.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-10">Chưa có lần luyện tập nào. Bắt đầu học ngay!</p>
+              ) : (
+                fullHistory.map(att => (
+                  <div key={att.attemptId} className="p-4 bg-slate-50 hover:bg-indigo-50/50 transition-colors rounded-2xl flex justify-between items-center border border-slate-100">
+                    <div>
+                      <h4 className="font-bold text-slate-800">{att.word}</h4>
+                      <p className="text-[11px] text-slate-500 mt-1 font-medium">{att.categoryName} • {new Date(att.attemptedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                    </div>
+                    <span className={`font-display text-xl font-extrabold ${att.isCorrect ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                      {att.isCorrect ? 'Chính xác' : 'Thử lại'}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
 
-            <button 
+            <button
               onClick={() => setShowHistoryModal(false)}
-              className="w-full py-3 bg-primary text-on-primary font-label-bold rounded-lg hover:bg-primary/95 active-scale transition-all"
+              className="w-full mt-6 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-md active:scale-[0.98]"
             >
-              Close
+              Đóng
             </button>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

@@ -7,15 +7,13 @@ interface LessonDetailViewProps {
   vocabList: Vocabulary[];
   onBack: () => void;
   onLaunchPractice: (lessonId: string, initialSign?: string) => void;
-  onUpdateLessonProgress: (lessonId: string, progress: number) => void;
 }
 
 export default function LessonDetailView({
   lesson,
   vocabList,
   onBack,
-  onLaunchPractice,
-  onUpdateLessonProgress
+  onLaunchPractice
 }: LessonDetailViewProps) {
   // Find vocabulary items that belong to this lesson
   const currentVocabItems = vocabList.filter(v => lesson.vocabulary.includes(v.id));
@@ -38,23 +36,23 @@ export default function LessonDetailView({
           </button>
           
           <div className="flex items-center space-x-1.5 text-xs text-outline font-semibold select-none">
-            <span>Lessons</span>
+            <span>Bài Học</span>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
             <span>{lesson.category}</span>
             <span className="material-symbols-outlined text-xs">chevron_right</span>
             <span className="text-primary">{lesson.title}</span>
           </div>
         </div>
-        
+
         {/* Lesson mastery badge */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-outline">Lesson Status:</span>
+          <span className="text-xs font-semibold text-outline">Trạng thái bài học:</span>
           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-            lesson.progress === 100 
-              ? 'bg-green-600/15 text-green-700' 
+            lesson.progress === 100
+              ? 'bg-green-600/15 text-green-700'
               : 'bg-amber-500/15 text-amber-700'
           }`}>
-            {lesson.progress === 100 ? 'Mastered (100%)' : `In Progress (${lesson.progress}%)`}
+            {lesson.progress === 100 ? 'Đã thành thạo (100%)' : `Đang học (${lesson.progress}%)`}
           </span>
         </div>
       </section>
@@ -76,28 +74,41 @@ export default function LessonDetailView({
           {/* HD Player block */}
           <div className="rounded-2xl overflow-hidden bg-black relative elevation-2 aspect-video group">
             {activeVocab ? (
-              <img 
-                className="w-full h-full object-cover" 
-                src={activeVocab.image} 
-                alt={activeVocab.name} 
-              />
+              activeVocab.videoUrl ? (
+                <video
+                  key={activeVocab.id}
+                  className="w-full h-full object-cover"
+                  src={activeVocab.videoUrl}
+                  poster={activeVocab.image}
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                />
+              ) : (
+                <img
+                  className="w-full h-full object-cover"
+                  src={activeVocab.image}
+                  alt={activeVocab.name}
+                />
+              )
             ) : (
-              <img 
-                className="w-full h-full object-cover" 
-                src={lesson.image} 
-                alt={lesson.title} 
+              <img
+                className="w-full h-full object-cover"
+                src={lesson.image}
+                alt={lesson.title}
               />
             )}
             
             {/* Visual HUD overlays */}
             <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></span>
-              HD Demonstration
+              Trình Diễn HD
             </div>
-            
+
             <div className="absolute bottom-4 right-4 bg-white/10 backdrop-blur-md border border-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">
               <span className="material-symbols-outlined text-sm">filter_center_focus</span>
-              Gesture Tracking Area
+              Khu Vực Theo Dõi Cử Chỉ
             </div>
           </div>
 
@@ -107,10 +118,10 @@ export default function LessonDetailView({
             <div className="glass-card p-5 rounded-xl border border-primary/20 space-y-3 shadow-sm">
               <div className="flex items-center space-x-2 text-primary font-bold">
                 <span className="material-symbols-outlined text-xl">emoji_objects</span>
-                <h4 className="font-label-bold text-sm">Expert Tip</h4>
+                <h4 className="font-label-bold text-sm">Mẹo Từ Chuyên Gia</h4>
               </div>
               <p className="text-on-surface-variant text-xs leading-relaxed">
-                {lesson.tips || "Focus on palm orientation! Keeping your wrist straight allows our computer vision neural network to process coordinates at high precision."}
+                {lesson.tips || "Chú ý hướng lòng bàn tay! Giữ cổ tay thẳng giúp mạng nơ-ron thị giác máy tính xử lý tọa độ chính xác hơn."}
               </p>
             </div>
 
@@ -118,10 +129,10 @@ export default function LessonDetailView({
             <div className="glass-card p-5 rounded-xl border border-error/20 space-y-3 shadow-sm">
               <div className="flex items-center space-x-2 text-error font-bold">
                 <span className="material-symbols-outlined text-xl">warning</span>
-                <h4 className="font-label-bold text-sm">Common Mistakes</h4>
+                <h4 className="font-label-bold text-sm">Lỗi Thường Gặp</h4>
               </div>
               <p className="text-on-surface-variant text-xs leading-relaxed">
-                {lesson.mistakes || "Avoid dropping your forearm below chest height or slouching. Standard communication happens entirely in high comfort zone."}
+                {lesson.mistakes || "Tránh để cẳng tay hạ thấp hơn ngực hoặc gù lưng. Giao tiếp chuẩn luôn diễn ra trong vùng thoải mái phía trước cơ thể."}
               </p>
             </div>
           </div>
@@ -132,16 +143,16 @@ export default function LessonDetailView({
           {/* Verify Card */}
           <div className="p-6 rounded-2xl bg-primary text-on-primary elevation-1 space-y-4 shadow-md relative overflow-hidden group">
             <div className="relative z-10">
-              <h3 className="font-display text-xl font-bold mb-1">Ready to verify?</h3>
+              <h3 className="font-display text-xl font-bold mb-1">Sẵn sàng kiểm tra?</h3>
               <p className="text-xs opacity-90 leading-relaxed mb-4">
-                Use your camera and our AI mentor to check your hand shape accuracy instantly.
+                Dùng camera của bạn và AI mentor để kiểm tra độ chính xác hình bàn tay ngay lập tức.
               </p>
-              <button 
+              <button
                 onClick={() => onLaunchPractice(lesson.id, activeVocab?.name)}
                 className="w-full active-scale-lg py-3 bg-white text-primary rounded-xl font-bold flex items-center justify-center gap-2 text-xs shadow-md hover:bg-slate-50 transition-colors"
               >
                 <span className="material-symbols-outlined text-lg">videocam</span>
-                Verify with Real-time AI
+                Kiểm Tra Với AI Trực Tiếp
               </button>
             </div>
             {/* Ambient bubble decoration */}
@@ -151,14 +162,14 @@ export default function LessonDetailView({
           {/* Vocabulary List card */}
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
             <header className="flex justify-between items-center pb-2 border-b border-outline-variant/10">
-              <h3 className="font-display text-lg font-bold text-on-surface">Vocabulary</h3>
+              <h3 className="font-display text-lg font-bold text-on-surface">Từ Vựng</h3>
               <span className="text-xs font-semibold text-outline">
-                {currentVocabItems.length} Sign{currentVocabItems.length !== 1 ? 's' : ''}
+                {currentVocabItems.length} Ký Hiệu
               </span>
             </header>
 
             {currentVocabItems.length === 0 ? (
-              <p className="text-xs text-outline py-4 text-center">No vocabulary defined for this lesson yet.</p>
+              <p className="text-xs text-outline py-4 text-center">Bài học này chưa có từ vựng nào.</p>
             ) : (
               <div className="space-y-3">
                 {currentVocabItems.map(v => (
@@ -177,7 +188,7 @@ export default function LessonDetailView({
                     
                     <div className="flex-1 min-w-0">
                       <h4 className="font-label-bold text-sm text-on-surface truncate">{v.name}</h4>
-                      <p className="text-xs text-on-surface-variant truncate">{v.attribute} Pose</p>
+                      <p className="text-xs text-on-surface-variant truncate">Tư thế {v.attribute}</p>
                     </div>
 
                     {activeVocab?.id === v.id && (
@@ -191,7 +202,7 @@ export default function LessonDetailView({
             {/* Mastery Bar */}
             <div className="pt-3 border-t border-outline-variant/20 space-y-1.5">
               <div className="flex justify-between items-center text-xs text-on-surface-variant">
-                <span>Vocabulary Completed</span>
+                <span>Từ Vựng Đã Hoàn Thành</span>
                 <span className="font-bold">{lesson.progress > 0 ? Math.ceil((lesson.progress / 100) * currentVocabItems.length) : 0} / {currentVocabItems.length}</span>
               </div>
               <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">

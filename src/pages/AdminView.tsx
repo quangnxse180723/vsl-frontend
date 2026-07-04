@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User, Vocabulary, Lesson } from '../types';
-import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2 } from 'lucide-react';
+import { adminApi, AdminCategoryResponse } from '../services/api/adminApi';
+import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2, Pencil, X } from 'lucide-react';
 
 interface AdminViewProps {
   users: User[];
   vocabularyList: Vocabulary[];
   lessons: Lesson[];
   onToggleUserStatus: (userId: string) => void;
-  onAddVocabulary: (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File }) => void;
+  onCreateUser: (payload: { username: string; email: string; password: string; fullName: string; role: 'USER' | 'ADMIN'; status: 'ACTIVE' | 'INACTIVE' }) => void;
+  onUpdateUser: (userId: string, payload: { fullName?: string; role?: 'USER' | 'ADMIN'; status?: 'ACTIVE' | 'INACTIVE'; password?: string }) => void;
+  onDeleteUser: (userId: string) => void;
+  onAddVocabulary: (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File; imageFile?: File }) => void;
   onDeleteVocabulary: (vocabId: string) => void;
+  onRefreshCategories: () => void;
 }
 
 export default function AdminView({
@@ -16,8 +21,12 @@ export default function AdminView({
   vocabularyList,
   lessons,
   onToggleUserStatus,
+  onCreateUser,
+  onUpdateUser,
+  onDeleteUser,
   onAddVocabulary,
-  onDeleteVocabulary
+  onDeleteVocabulary,
+  onRefreshCategories
 }: AdminViewProps) {
   // Add vocab fields
   const [vocabName, setVocabName] = useState('');
@@ -26,8 +35,144 @@ export default function AdminView({
   const [vocabExpectedId, setVocabExpectedId] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [vocabSearchQuery, setVocabSearchQuery] = useState('');
 
   const [notification, setNotification] = useState('');
+
+  // Category management (fetched directly here - not part of App's shared state)
+  const [categories, setCategories] = useState<AdminCategoryResponse[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
+  const [editCategoryDescription, setEditCategoryDescription] = useState('');
+  const [newCategoryImage, setNewCategoryImage] = useState<File | null>(null);
+  const [uploadingCategoryImageId, setUploadingCategoryImageId] = useState<number | null>(null);
+
+  const loadCategories = async () => {
+    try {
+      const res = await adminApi.getCategories(0, 100);
+      setCategories(res.content);
+    } catch (error) {
+      console.error('Failed to load categories', error);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      const created = await adminApi.createCategory(newCategoryName, newCategoryDescription);
+      if (newCategoryImage) {
+        await adminApi.uploadCategoryImage(created.id, newCategoryImage);
+      }
+      setNewCategoryName('');
+      setNewCategoryDescription('');
+      setNewCategoryImage(null);
+      await loadCategories();
+      onRefreshCategories();
+    } catch (error) {
+      alert('Không thể tạo danh mục. Tên có thể đã tồn tại.');
+    }
+  };
+
+  const handleUploadCategoryImage = async (categoryId: number, file: File) => {
+    setUploadingCategoryImageId(categoryId);
+    try {
+      await adminApi.uploadCategoryImage(categoryId, file);
+      await loadCategories();
+      onRefreshCategories();
+    } catch (error) {
+      alert('Không thể tải lên ảnh danh mục.');
+    } finally {
+      setUploadingCategoryImageId(null);
+    }
+  };
+
+  const startEditCategory = (cat: AdminCategoryResponse) => {
+    setEditingCategoryId(cat.id);
+    setEditCategoryName(cat.name);
+    setEditCategoryDescription(cat.description || '');
+  };
+
+  const handleSaveCategory = async (id: number) => {
+    try {
+      await adminApi.updateCategory(id, editCategoryName, editCategoryDescription);
+      setEditingCategoryId(null);
+      await loadCategories();
+      onRefreshCategories();
+    } catch (error) {
+      alert('Không thể cập nhật danh mục. Tên có thể đã tồn tại.');
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!window.confirm('Xóa danh mục này? Thao tác sẽ thất bại nếu vẫn còn từ vựng thuộc danh mục.')) return;
+    try {
+      await adminApi.deleteCategory(id);
+      await loadCategories();
+      onRefreshCategories();
+    } catch (error) {
+      alert('Không thể xóa danh mục - có thể vẫn còn từ vựng thuộc danh mục này.');
+    }
+  };
+
+  // User management: create + inline edit
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserFullName, setNewUserFullName] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'USER' | 'ADMIN'>('USER');
+
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserFullName, setEditUserFullName] = useState('');
+  const [editUserRole, setEditUserRole] = useState<'USER' | 'ADMIN'>('USER');
+  const [editUserPassword, setEditUserPassword] = useState('');
+
+  const handleCreateUserSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUsername.trim() || !newUserEmail.trim() || !newUserPassword.trim() || !newUserFullName.trim()) {
+      alert('Vui lòng điền đầy đủ thông tin để tạo người dùng.');
+      return;
+    }
+    onCreateUser({
+      username: newUsername,
+      email: newUserEmail,
+      password: newUserPassword,
+      fullName: newUserFullName,
+      role: newUserRole,
+      status: 'ACTIVE'
+    });
+    setNewUsername('');
+    setNewUserEmail('');
+    setNewUserPassword('');
+    setNewUserFullName('');
+    setNewUserRole('USER');
+    setShowAddUserForm(false);
+  };
+
+  const startEditUser = (u: User) => {
+    setEditingUserId(u.id);
+    setEditUserFullName(u.name);
+    setEditUserRole(u.role || 'USER');
+    setEditUserPassword('');
+  };
+
+  const handleSaveUser = (userId: string) => {
+    onUpdateUser(userId, {
+      fullName: editUserFullName,
+      role: editUserRole,
+      password: editUserPassword ? editUserPassword : undefined
+    });
+    setEditingUserId(null);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -52,6 +197,29 @@ export default function AdminView({
     }
   };
 
+  const handleImageDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingImage(true);
+  };
+
+  const handleImageDragLeave = () => {
+    setIsDraggingImage(false);
+  };
+
+  const handleImageDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingImage(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setUploadedImage(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setUploadedImage(e.target.files[0]);
+    }
+  };
+
   const handleAddVocabSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!vocabName.trim()) {
@@ -69,12 +237,13 @@ export default function AdminView({
     onAddVocabulary({
       name: vocabName,
       categoryId: Number(vocabCategoryId),
-      description: vocabDescription || 'No description provided.',
+      description: vocabDescription || 'Chưa có mô tả.',
       expectedId: uploadedFile ? Number(vocabExpectedId) : undefined,
-      file: uploadedFile || undefined
+      file: uploadedFile || undefined,
+      imageFile: uploadedImage || undefined
     });
 
-    setNotification(`Successfully added "${vocabName}" to active runtime libraries!`);
+    setNotification(`Đã thêm "${vocabName}" vào thư viện thành công!`);
     setTimeout(() => setNotification(''), 4000);
 
     // Reset Form
@@ -82,6 +251,7 @@ export default function AdminView({
     setVocabDescription('');
     setVocabExpectedId('');
     setUploadedFile(null);
+    setUploadedImage(null);
   };
 
   return (
@@ -89,8 +259,8 @@ export default function AdminView({
       
       {/* Intro Header */}
       <section>
-        <h2 className="font-display text-3xl font-extrabold text-[#111111]">Admin Console</h2>
-        <p className="text-body-md text-on-surface-variant">Monitor system telemetry, coordinate user parameters, and append real-time vocabularies.</p>
+        <h2 className="font-display text-3xl font-extrabold text-[#111111]">Bảng Quản Trị</h2>
+        <p className="text-body-md text-on-surface-variant">Theo dõi số liệu hệ thống, quản lý người dùng và bổ sung từ vựng mới.</p>
       </section>
 
       {/* Notifications */}
@@ -106,10 +276,10 @@ export default function AdminView({
         {/* Active users */}
         <div className="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 inset-shadow flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-outline">Active Users</p>
+            <p className="text-[10px] font-bold uppercase text-outline">Người Dùng Hoạt Động</p>
             <h3 className="text-3xl font-extrabold text-[#111111] mt-1">12.4k</h3>
             <span className="text-[10px] text-green-600 font-bold flex items-center gap-0.5 mt-1.5 bg-green-50 px-1.5 py-0.5 rounded-full w-max">
-              +18% from last week
+              +18% so với tuần trước
             </span>
           </div>
           <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
@@ -120,10 +290,10 @@ export default function AdminView({
         {/* Lessons completed */}
         <div className="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 inset-shadow flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-outline">Lessons Completed</p>
+            <p className="text-[10px] font-bold uppercase text-outline">Bài Học Đã Hoàn Thành</p>
             <h3 className="text-3xl font-extrabold text-[#111111] mt-1">84.2k</h3>
             <span className="text-[10px] text-green-600 font-bold flex items-center gap-0.5 mt-1.5 bg-green-50 px-1.5 py-0.5 rounded-full w-max">
-              +24% from last week
+              +24% so với tuần trước
             </span>
           </div>
           <div className="w-12 h-12 bg-[#2170e4]/10 rounded-xl flex items-center justify-center text-[#2170e4]">
@@ -134,10 +304,10 @@ export default function AdminView({
         {/* Average Match Accuracy */}
         <div className="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 inset-shadow flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-outline">Avg Match Accuracy</p>
+            <p className="text-[10px] font-bold uppercase text-outline">Độ Chính Xác Trung Bình</p>
             <h3 className="text-3xl font-extrabold text-[#111111] mt-1">94.2%</h3>
             <span className="text-[10px] text-green-600 font-bold flex items-center gap-0.5 mt-1.5 bg-green-50 px-1.5 py-0.5 rounded-full w-max">
-              +2.4% from last week
+              +2.4% so với tuần trước
             </span>
           </div>
           <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-600">
@@ -148,10 +318,10 @@ export default function AdminView({
         {/* System Health Status */}
         <div className="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 inset-shadow flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-outline">System Health</p>
-            <h3 className="text-3xl font-extrabold text-green-600 mt-1">Optimal</h3>
+            <p className="text-[10px] font-bold uppercase text-outline">Tình Trạng Hệ Thống</p>
+            <h3 className="text-3xl font-extrabold text-green-600 mt-1">Ổn định</h3>
             <span className="text-[10px] text-green-600 font-bold flex items-center gap-0.5 mt-1.5 bg-green-50 px-1.5 py-0.5 rounded-full w-max">
-              99.9% Core Uptime
+              99.9% Thời gian hoạt động
             </span>
           </div>
           <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center text-green-600">
@@ -167,8 +337,8 @@ export default function AdminView({
         <div className="lg:col-span-8 p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-6">
           <header className="flex justify-between items-center pb-2 border-b border-outline-variant/15">
             <div>
-              <h3 className="font-display text-lg font-bold text-on-surface">AI Accuracy Trends</h3>
-              <p className="text-xs text-on-surface-variant font-medium">Daily statistics of model classification reliability.</p>
+              <h3 className="font-display text-lg font-bold text-on-surface">Xu Hướng Độ Chính Xác AI</h3>
+              <p className="text-xs text-on-surface-variant font-medium">Thống kê hàng ngày về độ tin cậy phân loại của mô hình.</p>
             </div>
             <div className="flex items-center space-x-2 text-xs text-primary font-bold">
               <span className="w-2.5 h-2.5 bg-primary rounded-full"></span>
@@ -225,11 +395,11 @@ export default function AdminView({
 
             {/* Custom overlay labels matching screenshots */}
             <div className="flex justify-between text-[10px] text-outline px-2 font-mono">
-              <span>MONDAY (90%)</span>
-              <span>TUESDAY (88%)</span>
-              <span>WEDNESDAY (94%)</span>
-              <span>THURSDAY (92%)</span>
-              <span>FRIDAY (96%)</span>
+              <span>THỨ HAI (90%)</span>
+              <span>THỨ BA (88%)</span>
+              <span>THỨ TƯ (94%)</span>
+              <span>THỨ NĂM (92%)</span>
+              <span>THỨ SÁU (96%)</span>
             </div>
           </div>
         </div>
@@ -237,15 +407,15 @@ export default function AdminView({
         {/* Right Grid: Content Management (4/12 wide) */}
         <div className="lg:col-span-4 p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
           <header className="pb-2 border-b border-outline-variant/15">
-            <h3 className="font-display text-lg font-bold text-on-surface">Content Management</h3>
-            <p className="text-xs text-on-surface-variant font-medium">Quick addition of vocabulary and HD videos.</p>
+            <h3 className="font-display text-lg font-bold text-on-surface">Quản Lý Nội Dung</h3>
+            <p className="text-xs text-on-surface-variant font-medium">Thêm nhanh từ vựng và video HD.</p>
           </header>
 
           <form onSubmit={handleAddVocabSubmit} className="space-y-4">
-            
+
             {/* Category */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-outline">Library Category</label>
+              <label className="text-xs font-semibold text-outline">Danh Mục</label>
               <select
                 className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none text-on-surface focus:border-primary"
                 value={vocabCategoryId}
@@ -259,11 +429,11 @@ export default function AdminView({
 
             {/* Word Name */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-outline">Sign Word Name</label>
-              <input 
-                type="text" 
+              <label className="text-xs font-semibold text-outline">Tên Từ Vựng</label>
+              <input
+                type="text"
                 className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none text-on-surface focus:border-primary"
-                placeholder="e.g. Letter B, Aunt"
+                placeholder="vd: Chữ B, Cô/Dì"
                 value={vocabName}
                 onChange={(e) => setVocabName(e.target.value)}
                 required
@@ -272,10 +442,10 @@ export default function AdminView({
 
             {/* Description of sign */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-outline">Sign Description</label>
-              <textarea 
+              <label className="text-xs font-semibold text-outline">Mô Tả Ký Hiệu</label>
+              <textarea
                 className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none text-on-surface focus:border-primary h-20 resize-none"
-                placeholder="Provide accurate body posture instructions..."
+                placeholder="Mô tả chính xác tư thế cơ thể..."
                 value={vocabDescription}
                 onChange={(e) => setVocabDescription(e.target.value)}
               />
@@ -283,7 +453,7 @@ export default function AdminView({
 
             {/* Upload Video reference dropzone */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-outline">Reference File</label>
+              <label className="text-xs font-semibold text-outline">File Video Mẫu</label>
               <div
                 className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
                   isDragging
@@ -308,22 +478,55 @@ export default function AdminView({
                   {uploadedFile ? 'check_circle' : 'cloud_upload'}
                 </span>
                 <p className="text-xs text-on-surface font-semibold truncate">
-                  {uploadedFile ? uploadedFile.name : 'Drag video reference or browse'}
+                  {uploadedFile ? uploadedFile.name : 'Kéo thả video hoặc bấm để chọn'}
                 </p>
-                <p className="text-[10px] text-outline mt-1 font-medium select-none">MP4 or WEBM, maximum 10MB</p>
+                <p className="text-[10px] text-outline mt-1 font-medium select-none">MP4 hoặc WEBM, tối đa 10MB</p>
+              </div>
+            </div>
+
+            {/* Upload Illustration image dropzone */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-outline">Ảnh Minh Họa</label>
+              <div
+                className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+                  isDraggingImage
+                    ? 'border-primary bg-primary/5'
+                    : uploadedImage
+                      ? 'border-green-400 bg-green-50/20'
+                      : 'border-outline-variant/60 hover:border-outline'
+                }`}
+                onDragOver={handleImageDragOver}
+                onDragLeave={handleImageDragLeave}
+                onDrop={handleImageDrop}
+                onClick={() => document.getElementById('admin-image-picker')?.click()}
+              >
+                <input
+                  type="file"
+                  id="admin-image-picker"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageFileChange}
+                />
+                <span className="material-symbols-outlined text-outline text-3xl mb-1.5">
+                  {uploadedImage ? 'check_circle' : 'add_photo_alternate'}
+                </span>
+                <p className="text-xs text-on-surface font-semibold truncate">
+                  {uploadedImage ? uploadedImage.name : 'Kéo thả ảnh hoặc bấm để chọn'}
+                </p>
+                <p className="text-[10px] text-outline mt-1 font-medium select-none">JPG, PNG hoặc WEBP, tối đa 10MB</p>
               </div>
             </div>
 
             {/* Expected AI class index, required alongside the reference video */}
             {uploadedFile && (
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Expected ID (AI model class index)</label>
+                <label className="text-xs font-semibold text-outline">Expected ID (chỉ số lớp của mô hình AI)</label>
                 <input
                   type="number"
                   min={0}
                   max={999}
                   className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none text-on-surface focus:border-primary"
-                  placeholder="e.g. 61"
+                  placeholder="vd: 61"
                   value={vocabExpectedId}
                   onChange={(e) => setVocabExpectedId(e.target.value)}
                   required
@@ -336,7 +539,7 @@ export default function AdminView({
               className="w-full py-2.5 bg-primary text-on-primary font-bold rounded-xl text-xs shadow hover:bg-primary/95 active-scale flex items-center justify-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
-              Quick Add Vocabulary
+              Thêm Từ Vựng Nhanh
             </button>
           </form>
         </div>
@@ -346,27 +549,105 @@ export default function AdminView({
       <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-6">
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-outline-variant/15">
           <div>
-            <h3 className="font-display text-lg font-bold text-on-surface">User Management</h3>
-            <p className="text-xs text-on-surface-variant font-medium">Verify login status, student proficiency scales, and toggle active states.</p>
+            <h3 className="font-display text-lg font-bold text-on-surface">Quản Lý Người Dùng</h3>
+            <p className="text-xs text-on-surface-variant font-medium">Kiểm tra trạng thái đăng nhập, vai trò và bật/tắt hoạt động.</p>
           </div>
-          <span className="text-xs font-bold text-outline uppercase tracking-wider">{users.length} enrolled student models</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-outline uppercase tracking-wider">{users.length} học viên đã đăng ký</span>
+            <button
+              type="button"
+              onClick={() => setShowAddUserForm(!showAddUserForm)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-on-primary flex items-center gap-1.5 active-scale"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Thêm Người Dùng
+            </button>
+          </div>
         </header>
+
+        {showAddUserForm && (
+          <form onSubmit={handleCreateUserSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 p-4 bg-surface-container-low/40 rounded-xl border border-outline-variant/30">
+            <input
+              type="text" placeholder="Tên đăng nhập" required value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+            />
+            <input
+              type="text" placeholder="Họ và tên" required value={newUserFullName}
+              onChange={(e) => setNewUserFullName(e.target.value)}
+              className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+            />
+            <input
+              type="email" placeholder="Email" required value={newUserEmail}
+              onChange={(e) => setNewUserEmail(e.target.value)}
+              className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+            />
+            <input
+              type="password" placeholder="Mật khẩu" required value={newUserPassword}
+              onChange={(e) => setNewUserPassword(e.target.value)}
+              className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+            />
+            <div className="flex gap-2">
+              <select
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value as 'USER' | 'ADMIN')}
+                className="flex-1 px-3 py-2 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+              >
+                <option value="USER">Người dùng</option>
+                <option value="ADMIN">Quản trị viên</option>
+              </select>
+              <button type="submit" className="px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-bold shrink-0">Tạo</button>
+            </div>
+          </form>
+        )}
 
         {/* Responsive Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr className="border-b border-outline-variant/20 text-outline text-xs uppercase tracking-wider font-semibold">
-                <th className="py-3 px-4 font-bold select-none">Name / Profile</th>
-                <th className="py-3 px-4 font-bold select-none">Email Address</th>
-                <th className="py-3 px-4 font-bold select-none">Status Badge</th>
-                <th className="py-3 px-4 font-bold select-none">Proficiency Rate</th>
-                <th className="py-3 px-4 font-bold select-none">Last Active</th>
-                <th className="py-3 px-4 text-center font-bold select-none">Actions</th>
+                <th className="py-3 px-4 font-bold select-none">Tên / Hồ Sơ</th>
+                <th className="py-3 px-4 font-bold select-none">Email</th>
+                <th className="py-3 px-4 font-bold select-none">Vai Trò</th>
+                <th className="py-3 px-4 font-bold select-none">Trạng Thái</th>
+                <th className="py-3 px-4 font-bold select-none">Hoạt Động Gần Nhất</th>
+                <th className="py-3 px-4 text-center font-bold select-none">Hành Động</th>
               </tr>
             </thead>
             <tbody>
               {users.map(u => (
+                editingUserId === u.id ? (
+                  <tr key={u.id} className="border-b border-outline-variant/15 bg-primary-container/5">
+                    <td className="py-3 px-4" colSpan={2}>
+                      <input
+                        type="text" value={editUserFullName}
+                        onChange={(e) => setEditUserFullName(e.target.value)}
+                        className="w-full px-2 py-1.5 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs"
+                      />
+                      <input
+                        type="password" placeholder="Mật khẩu mới (tùy chọn)" value={editUserPassword}
+                        onChange={(e) => setEditUserPassword(e.target.value)}
+                        className="w-full mt-1.5 px-2 py-1.5 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs"
+                      />
+                    </td>
+                    <td className="py-3 px-4">
+                      <select
+                        value={editUserRole}
+                        onChange={(e) => setEditUserRole(e.target.value as 'USER' | 'ADMIN')}
+                        className="px-2 py-1.5 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs"
+                      >
+                        <option value="USER">Người dùng</option>
+                        <option value="ADMIN">Quản trị viên</option>
+                      </select>
+                    </td>
+                    <td className="py-3 px-4 text-outline text-xs">{u.status === 'Active' ? 'Hoạt động' : 'Ngừng hoạt động'}</td>
+                    <td className="py-3 px-4 text-outline text-xs">{u.lastActive}</td>
+                    <td className="py-3 px-4 text-center space-x-1.5">
+                      <button onClick={() => handleSaveUser(u.id)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-500/10 text-green-700 border border-green-500/20">Lưu</button>
+                      <button onClick={() => setEditingUserId(null)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-container-high text-outline">Hủy</button>
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={u.id} className="border-b border-outline-variant/15 hover:bg-surface-container-low/25 transition-colors">
                   {/* Name */}
                   <td className="py-4 px-4 flex items-center space-x-3">
@@ -375,63 +656,184 @@ export default function AdminView({
                     </div>
                     <span className="font-label-bold text-[#111111]">{u.name}</span>
                   </td>
-                  
+
                   {/* Email */}
                   <td className="py-4 px-4 font-medium text-on-surface-variant">{u.email}</td>
-                  
+
+                  {/* Role */}
+                  <td className="py-4 px-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold leading-none ${
+                      u.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {u.role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng'}
+                    </span>
+                  </td>
+
                   {/* Status Badge */}
                   <td className="py-4 px-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold leading-none ${
-                      u.status === 'Active' 
-                        ? 'bg-green-100 text-green-700' 
+                      u.status === 'Active'
+                        ? 'bg-green-100 text-green-700'
                         : 'bg-slate-100 text-slate-500'
                     }`}>
-                      {u.status}
+                      {u.status === 'Active' ? 'Hoạt động' : 'Ngừng hoạt động'}
                     </span>
                   </td>
-                  
-                  {/* Proficiency */}
-                  <td className="py-4 px-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-24 h-2 bg-surface-container-high rounded-full overflow-hidden shrink-0">
-                        <div className="h-full bg-primary rounded-full" style={{ width: `${u.proficiency}%` }}></div>
-                      </div>
-                      <span className="font-mono text-xs font-bold text-on-surface">{u.proficiency}%</span>
-                    </div>
-                  </td>
-                  
+
                   {/* Last active */}
                   <td className="py-4 px-4 text-outline font-medium">{u.lastActive}</td>
 
                   {/* Actions */}
-                  <td className="py-4 px-4 text-center">
-                    <button 
+                  <td className="py-4 px-4 text-center space-x-1.5 whitespace-nowrap">
+                    <button
                       onClick={() => onToggleUserStatus(u.id)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shrink-0 ${
-                        u.status === 'Active' 
+                        u.status === 'Active'
                           ? 'bg-amber-500/10 text-amber-700 border-amber-500/20 hover:bg-amber-500/15'
                           : 'bg-green-500/10 text-green-700 border-green-500/20 hover:bg-green-500/15'
                       }`}
                     >
-                      {u.status === 'Active' ? 'Set Idle' : 'Set Active'}
+                      {u.status === 'Active' ? 'Chuyển Ngừng HĐ' : 'Chuyển Hoạt Động'}
+                    </button>
+                    <button
+                      onClick={() => startEditUser(u)}
+                      title="Sửa người dùng"
+                      className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary-container/10 transition-colors inline-flex"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => { if (window.confirm(`Vô hiệu hóa ${u.name}?`)) onDeleteUser(u.id); }}
+                      title="Vô hiệu hóa người dùng"
+                      className="p-1.5 rounded-lg text-outline hover:text-[#ba1a1a] hover:bg-red-50 transition-colors inline-flex"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </td>
                 </tr>
+                )
               ))}
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* Vocabulary List Editor (Manage catalog words) */}
+      {/* Category Management */}
       <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
         <header className="pb-2 border-b border-outline-variant/15">
-          <h3 className="font-display text-lg font-bold text-on-surface">Registered Vocabulary Library list</h3>
-          <p className="text-xs text-on-surface-variant">Review words integrated inside active calibration templates.</p>
+          <h3 className="font-display text-lg font-bold text-on-surface">Quản Lý Danh Mục</h3>
+          <p className="text-xs text-on-surface-variant">Tạo, đổi tên hoặc xóa danh mục từ vựng.</p>
+        </header>
+
+        <form onSubmit={handleCreateCategory} className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="text" placeholder="Tên danh mục mới" value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            className="flex-1 px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+          />
+          <input
+            type="text" placeholder="Mô tả (tùy chọn)" value={newCategoryDescription}
+            onChange={(e) => setNewCategoryDescription(e.target.value)}
+            className="flex-1 px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+          />
+          <label className="px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium text-outline cursor-pointer flex items-center gap-1.5 shrink-0 hover:border-outline">
+            <span className="material-symbols-outlined text-[16px]">add_photo_alternate</span>
+            <span className="truncate max-w-[120px]">{newCategoryImage ? newCategoryImage.name : 'Ảnh bìa'}</span>
+            <input
+              type="file" accept="image/*" className="hidden"
+              onChange={(e) => setNewCategoryImage(e.target.files?.[0] || null)}
+            />
+          </label>
+          <button type="submit" className="px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-bold shrink-0 flex items-center gap-1.5 justify-center">
+            <Plus className="w-3.5 h-3.5" /> Thêm
+          </button>
+        </form>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {categories.map(cat => (
+            <div key={cat.id} className="p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant/30 space-y-2">
+              {editingCategoryId === cat.id ? (
+                <>
+                  <input
+                    type="text" value={editCategoryName}
+                    onChange={(e) => setEditCategoryName(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs"
+                  />
+                  <input
+                    type="text" value={editCategoryDescription}
+                    onChange={(e) => setEditCategoryDescription(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-surface-container-lowest border border-outline-variant/50 rounded-lg text-xs"
+                  />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => handleSaveCategory(cat.id)} className="flex-1 py-1.5 bg-green-500/10 text-green-700 border border-green-500/20 rounded-lg text-xs font-bold">Lưu</button>
+                    <button onClick={() => setEditingCategoryId(null)} className="flex-1 py-1.5 bg-surface-container-high text-outline rounded-lg text-xs font-bold">Hủy</button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <div className="w-10 h-10 rounded-lg bg-surface-variant shrink-0 overflow-hidden border border-outline-variant/45 flex items-center justify-center">
+                      {cat.imageUrl ? (
+                        <img className="w-full h-full object-cover" src={cat.imageUrl} alt={cat.name} />
+                      ) : (
+                        <span className="material-symbols-outlined text-outline text-[18px]">image</span>
+                      )}
+                    </div>
+                    <div className="overflow-hidden">
+                      <h4 className="font-label-bold text-xs truncate text-[#111111]">{cat.name}</h4>
+                      <p className="text-[10px] text-outline truncate">{cat.description || 'Chưa có mô tả'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label
+                      title="Tải lên ảnh bìa"
+                      className="p-1.5 hover:bg-primary-container/10 text-outline hover:text-primary rounded-lg cursor-pointer"
+                    >
+                      {uploadingCategoryImageId === cat.id ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[16px] leading-none">add_photo_alternate</span>
+                      )}
+                      <input
+                        type="file" accept="image/*" className="hidden"
+                        disabled={uploadingCategoryImageId === cat.id}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadCategoryImage(cat.id, file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <button onClick={() => startEditCategory(cat)} className="p-1.5 hover:bg-primary-container/10 text-outline hover:text-primary rounded-lg"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleDeleteCategory(cat.id)} className="p-1.5 hover:bg-red-50 text-outline hover:text-[#ba1a1a] rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Vocabulary List Editor (Manage catalog words) */}
+      <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant/15">
+          <div>
+            <h3 className="font-display text-lg font-bold text-on-surface">Danh Sách Từ Vựng Đã Đăng Ký</h3>
+            <p className="text-xs text-on-surface-variant">Xem lại các từ đã tích hợp vào mẫu hiệu chỉnh đang hoạt động.</p>
+          </div>
+          <input
+            type="text"
+            placeholder="Tìm kiếm từ vựng..."
+            value={vocabSearchQuery}
+            onChange={(e) => setVocabSearchQuery(e.target.value)}
+            className="w-full sm:w-64 px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-xs font-medium outline-none focus:border-primary"
+          />
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {vocabularyList.map(v => (
+          {vocabularyList
+            .filter(v => v.name.toLowerCase().includes(vocabSearchQuery.toLowerCase()))
+            .map(v => (
             <div 
               key={v.id} 
               className="p-3 bg-surface-container-low/40 rounded-xl border border-outline-variant/30 flex items-center justify-between"

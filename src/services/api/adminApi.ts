@@ -24,6 +24,23 @@ export interface AdminCategoryResponse {
   id: number;
   name: string;
   description: string;
+  imageUrl: string | null;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  email: string;
+  password: string;
+  fullName: string;
+  role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface UpdateUserPayload {
+  fullName?: string;
+  role?: 'USER' | 'ADMIN';
+  status?: 'ACTIVE' | 'INACTIVE';
+  password?: string;
 }
 
 export const adminApi = {
@@ -32,8 +49,20 @@ export const adminApi = {
     return axiosClient.get(`/admin/users?page=${page}&size=${size}`);
   },
 
+  createUser: (payload: CreateUserPayload): Promise<AdminUserResponse> => {
+    return axiosClient.post('/admin/users', payload);
+  },
+
+  updateUser: (id: number, payload: UpdateUserPayload): Promise<AdminUserResponse> => {
+    return axiosClient.put(`/admin/users/${id}`, payload);
+  },
+
   toggleUserStatus: (id: number, status: string): Promise<AdminUserResponse> => {
     return axiosClient.put(`/admin/users/${id}`, { status });
+  },
+
+  deleteUser: (id: number): Promise<string> => {
+    return axiosClient.delete(`/admin/users/${id}`);
   },
 
   createVocabulary: (categoryId: number, word: string, description: string): Promise<ApiResponse<any>> => {
@@ -50,6 +79,17 @@ export const adminApi = {
     formData.append('expectedId', expectedId.toString());
 
     return axiosClient.post(`/admin/vocabulary/${vocabularyId}/tutorial-video`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  uploadVocabularyImage: (vocabularyId: number, imageFile: File): Promise<ApiResponse<string>> => {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return axiosClient.post(`/admin/vocabulary/${vocabularyId}/image`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -75,5 +115,16 @@ export const adminApi = {
 
   deleteCategory: (id: number): Promise<string> => {
     return axiosClient.delete(`/admin/categories/${id}`);
+  },
+
+  uploadCategoryImage: (id: number, imageFile: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    return axiosClient.post(`/admin/categories/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   }
 };
