@@ -27,6 +27,30 @@ export interface AdminCategoryResponse {
   imageUrl: string | null;
 }
 
+export interface AdminBlogResponse {
+  id: number;
+  title: string;
+  content: string;
+  thumbnailUrl: string | null;
+  status: 'DRAFT' | 'PUBLISHED';
+  authorId: number | null;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBlogPayload {
+  title: string;
+  content: string;
+  status?: string;
+}
+
+export interface UpdateBlogPayload {
+  title: string;
+  content: string;
+  status?: string;
+}
+
 export interface CreateUserPayload {
   username: string;
   email: string;
@@ -126,5 +150,34 @@ export const adminApi = {
         'Content-Type': 'multipart/form-data',
       },
     });
-  }
+  },
+
+  // ─── Blog ───────────────────────────────────────────────────────────────
+  getBlogs: (page = 0, size = 20): Promise<PageResponse<AdminBlogResponse>> => {
+    return axiosClient.get(`/admin/blogs?page=${page}&size=${size}`);
+  },
+
+  getBlogById: (id: number): Promise<AdminBlogResponse> => {
+    return axiosClient.get(`/admin/blogs/${id}`);
+  },
+
+  createBlog: (payload: CreateBlogPayload): Promise<AdminBlogResponse> => {
+    return axiosClient.post('/admin/blogs', payload);
+  },
+
+  updateBlog: (id: number, payload: UpdateBlogPayload): Promise<AdminBlogResponse> => {
+    return axiosClient.put(`/admin/blogs/${id}`, payload);
+  },
+
+  deleteBlog: (id: number): Promise<string> => {
+    return axiosClient.delete(`/admin/blogs/${id}`);
+  },
+
+  uploadBlogThumbnail: (id: number, imageFile: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    return axiosClient.post(`/admin/blogs/${id}/thumbnail`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
