@@ -15,6 +15,8 @@ import LessonDetailView from './pages/LessonDetailView';
 import AIPracticeView from './pages/AIPracticeView';
 import AdminView from './pages/AdminView';
 import ProfileView from './pages/ProfileView';
+import BlogView from './pages/BlogView';
+import MyBlogsView from './pages/MyBlogsView';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
 const VOCAB_THUMBNAIL = 'https://images.unsplash.com/photo-1543269865-cbf427effbad?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
@@ -50,7 +52,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin' | 'blog' | 'my-blogs'>('dashboard');
 
   // Drill-down Detail Lesson State
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
@@ -466,6 +468,38 @@ export default function App() {
               <span className="md:inline">Hồ Sơ</span>
             </button>
 
+            {/* Blog link */}
+            <button
+              onClick={() => {
+                setCurrentTab('blog');
+                setSelectedLessonId(null);
+              }}
+              className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center gap-3 transition-colors shrink-0 text-sm font-bold ${
+                currentTab === 'blog'
+                  ? 'bg-primary-container/10 text-primary'
+                  : 'text-outline hover:bg-surface-container-low hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">public</span>
+              <span className="md:inline">Blog Cộng Đồng</span>
+            </button>
+
+            {/* My Blogs link */}
+            <button
+              onClick={() => {
+                setCurrentTab('my-blogs');
+                setSelectedLessonId(null);
+              }}
+              className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center gap-3 transition-colors shrink-0 text-sm font-bold ${
+                currentTab === 'my-blogs'
+                  ? 'bg-primary-container/10 text-primary'
+                  : 'text-outline hover:bg-surface-container-low hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">edit_document</span>
+              <span className="md:inline">Bài Viết Của Tôi</span>
+            </button>
+
             {/* Admin link */}
             <button
               onClick={() => {
@@ -580,6 +614,14 @@ export default function App() {
                 onDeleteVocabulary={handleDeleteVocabulary}
                 onRefreshCategories={loadDashboardData}
               />
+            )}
+
+            {currentTab === 'blog' && (
+              <BlogView />
+            )}
+
+            {currentTab === 'my-blogs' && (
+              <MyBlogsView />
             )}
           </>
         )}

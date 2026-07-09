@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { User, Vocabulary, Lesson } from '../types';
-import { adminApi, AdminCategoryResponse } from '../services/api/adminApi';
-import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2, Pencil, X } from 'lucide-react';
+import { adminApi, AdminCategoryResponse, AdminBlogResponse, CreateBlogPayload, UpdateBlogPayload } from '../services/api/adminApi';
+import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2, Pencil, X, BookOpen, Eye, EyeOff } from 'lucide-react';
 
 interface AdminViewProps {
   users: User[];
@@ -63,6 +63,92 @@ export default function AdminView({
   useEffect(() => {
     loadCategories();
   }, []);
+
+  // ─── Blog management ──────────────────────────────────────────────────────
+  const [blogs, setBlogs] = useState<AdminBlogResponse[]>([]);
+  const [blogLoading, setBlogLoading] = useState(false);
+
+  // Create blog form
+  const [showBlogForm, setShowBlogForm] = useState(false);
+  const [blogTitle, setBlogTitle] = useState('');
+  const [blogContent, setBlogContent] = useState('');
+  const [blogStatus, setBlogStatus] = useState<'DRAFT' | 'PUBLISHED'>('DRAFT');
+  const [blogThumbnail, setBlogThumbnail] = useState<File | null>(null);
+
+  // Edit blog
+  const [editingBlog, setEditingBlog] = useState<AdminBlogResponse | null>(null);
+  const [editBlogTitle, setEditBlogTitle] = useState('');
+  const [editBlogContent, setEditBlogContent] = useState('');
+  const [editBlogStatus, setEditBlogStatus] = useState<'DRAFT' | 'PUBLISHED'>('DRAFT');
+
+  const loadBlogs = async () => {
+    setBlogLoading(true);
+    try {
+      const res = await adminApi.getBlogs(0, 100);
+      setBlogs(res.content);
+    } catch (err) {
+      console.error('Failed to load blogs', err);
+    } finally {
+      setBlogLoading(false);
+    }
+  };
+
+  useEffect(() => { loadBlogs(); }, []);
+
+  const handleCreateBlog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blogTitle.trim() || !blogContent.trim()) {
+      alert('Vui lòng điền tiêu đề và nội dung bài viết!');
+      return;
+    }
+    try {
+      const payload: CreateBlogPayload = { title: blogTitle, content: blogContent, status: blogStatus };
+      const created = await adminApi.createBlog(payload);
+      if (blogThumbnail) await adminApi.uploadBlogThumbnail(created.id, blogThumbnail);
+      setBlogTitle('');
+      setBlogContent('');
+      setBlogStatus('DRAFT');
+      setBlogThumbnail(null);
+      setShowBlogForm(false);
+      await loadBlogs();
+    } catch (err) {
+      alert('Không thể tạo bài viết.');
+    }
+  };
+
+  const startEditBlog = (blog: AdminBlogResponse) => {
+    setEditingBlog(blog);
+    setEditBlogTitle(blog.title);
+    setEditBlogContent(blog.content);
+    setEditBlogStatus(blog.status);
+  };
+
+  const handleSaveBlog = async () => {
+    if (!editingBlog) return;
+    if (!editBlogTitle.trim() || !editBlogContent.trim()) {
+      alert('Tiêu đề và nội dung không được để trống!');
+      return;
+    }
+    try {
+      const payload: UpdateBlogPayload = { title: editBlogTitle, content: editBlogContent, status: editBlogStatus };
+      await adminApi.updateBlog(editingBlog.id, payload);
+      setEditingBlog(null);
+      await loadBlogs();
+    } catch (err) {
+      alert('Không thể cập nhật bài viết.');
+    }
+  };
+
+  const handleDeleteBlog = async (id: number) => {
+    if (!window.confirm('Xác nhận xóa bài viết này?')) return;
+    try {
+      await adminApi.deleteBlog(id);
+      await loadBlogs();
+    } catch (err) {
+      alert('Không thể xóa bài viết.');
+    }
+  };
+  // ──────────────────────────────────────────────────────────────────────────
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -856,6 +942,211 @@ export default function AdminView({
             </div>
           ))}
         </div>
+      </section>
+        {/* ──────────── Blog Management Section ──────────── */}
+      <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
+        <header className="flex justify-between items-center pb-2 border-b border-outline-variant/15">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-primary" />
+            <h3 className="font-display text-lg font-bold text-on-surface">Quản Lý Blog</h3>
+            <span className="text-xs text-outline ml-1">({blogs.length} bài viết)</span>
+          </div>
+          <button
+            onClick={() => { setShowBlogForm(v => !v); setEditingBlog(null); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Tạo bài viết
+          </button>
+        </header>
+
+        {/* Create form */}
+        {showBlogForm && (
+          <form onSubmit={handleCreateBlog} className="bg-surface-container-low/60 rounded-xl p-5 space-y-4 border border-outline-variant/30">
+            <h4 className="text-sm font-bold text-on-surface">Tạo bài viết mới</h4>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-outline">Tiêu đề *</label>
+              <input
+                type="text"
+                value={blogTitle}
+                onChange={e => setBlogTitle(e.target.value)}
+                placeholder="Nhập tiêu đề bài viết..."
+                className="w-full px-3 py-2 bg-surface border border-outline-variant/50 rounded-lg text-sm outline-none focus:border-primary"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-outline">Nội dung *</label>
+              <textarea
+                value={blogContent}
+                onChange={e => setBlogContent(e.target.value)}
+                placeholder="Nhập nội dung bài viết..."
+                rows={6}
+                className="w-full px-3 py-2 bg-surface border border-outline-variant/50 rounded-lg text-sm outline-none focus:border-primary resize-y"
+              />
+            </div>
+            <div className="flex gap-4 flex-wrap">
+              <div className="space-y-2 flex-1 min-w-[160px]">
+                <label className="text-xs font-semibold text-outline">Trạng thái</label>
+                <select
+                  value={blogStatus}
+                  onChange={e => setBlogStatus(e.target.value as 'DRAFT' | 'PUBLISHED')}
+                  className="w-full px-3 py-2 bg-surface border border-outline-variant/50 rounded-lg text-sm outline-none focus:border-primary"
+                >
+                  <option value="DRAFT">Nháp (Draft)</option>
+                  <option value="PUBLISHED">Xuất bản (Published)</option>
+                </select>
+              </div>
+              <div className="space-y-2 flex-1 min-w-[200px]">
+                <label className="text-xs font-semibold text-outline">Thumbnail (tuỳ chọn)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setBlogThumbnail(e.target.files?.[0] || null)}
+                  className="w-full text-xs file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Tạo bài viết
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBlogForm(false)}
+                className="px-4 py-2 bg-surface-variant text-on-surface-variant text-xs font-semibold rounded-lg hover:bg-outline-variant/30 transition-colors"
+              >
+                Huỷ
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Edit modal */}
+        {editingBlog && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-surface rounded-2xl p-6 w-full max-w-2xl space-y-4 border border-outline-variant/30 shadow-2xl">
+              <div className="flex justify-between items-center">
+                <h4 className="text-base font-bold text-on-surface">Sửa bài viết #{editingBlog.id}</h4>
+                <button onClick={() => setEditingBlog(null)} className="p-1.5 hover:bg-surface-variant rounded-lg"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-outline">Tiêu đề *</label>
+                <input
+                  type="text"
+                  value={editBlogTitle}
+                  onChange={e => setEditBlogTitle(e.target.value)}
+                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-sm outline-none focus:border-primary"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-outline">Nội dung *</label>
+                <textarea
+                  value={editBlogContent}
+                  onChange={e => setEditBlogContent(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-sm outline-none focus:border-primary resize-y"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-outline">Trạng thái</label>
+                <select
+                  value={editBlogStatus}
+                  onChange={e => setEditBlogStatus(e.target.value as 'DRAFT' | 'PUBLISHED')}
+                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg text-sm outline-none focus:border-primary"
+                >
+                  <option value="DRAFT">Nháp (Draft)</option>
+                  <option value="PUBLISHED">Xuất bản (Published)</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleSaveBlog}
+                  className="px-4 py-2 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  Lưu thay đổi
+                </button>
+                <button
+                  onClick={() => setEditingBlog(null)}
+                  className="px-4 py-2 bg-surface-variant text-on-surface-variant text-xs font-semibold rounded-lg hover:bg-outline-variant/30 transition-colors"
+                >
+                  Huỷ
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Blog table */}
+        {blogLoading ? (
+          <div className="flex items-center justify-center py-10 text-outline">
+            <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Đang tải bài viết...
+          </div>
+        ) : blogs.length === 0 ? (
+          <div className="text-center py-10 text-outline text-sm">Chưa có bài viết nào. Nhấn "Tạo bài viết" để bắt đầu!</div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-outline-variant/20">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-surface-container-low/60 text-outline uppercase tracking-wider">
+                  <th className="py-3 px-4 text-left font-semibold">ID</th>
+                  <th className="py-3 px-4 text-left font-semibold">Tiêu đề</th>
+                  <th className="py-3 px-4 text-left font-semibold">Tác giả</th>
+                  <th className="py-3 px-4 text-left font-semibold">Trạng thái</th>
+                  <th className="py-3 px-4 text-left font-semibold">Ngày tạo</th>
+                  <th className="py-3 px-4 text-center font-semibold">Hành động</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/20">
+                {blogs.map(blog => (
+                  <tr key={blog.id} className="hover:bg-surface-container-low/40 transition-colors">
+                    <td className="py-3 px-4 font-mono text-outline">#{blog.id}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        {blog.thumbnailUrl && (
+                          <img src={blog.thumbnailUrl} alt="" className="w-8 h-8 rounded-lg object-cover border border-outline-variant/30" />
+                        )}
+                        <span className="font-semibold text-on-surface truncate max-w-[220px]" title={blog.title}>{blog.title}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-outline">{blog.authorName || '—'}</td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold text-[10px] ${
+                        blog.status === 'PUBLISHED'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {blog.status === 'PUBLISHED' ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                        {blog.status === 'PUBLISHED' ? 'Đã xuất bản' : 'Nháp'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-outline">{new Date(blog.createdAt).toLocaleDateString('vi-VN')}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => startEditBlog(blog)}
+                          className="p-1.5 hover:bg-primary/10 text-outline hover:text-primary rounded-lg transition-colors"
+                          title="Sửa"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBlog(blog.id)}
+                          className="p-1.5 hover:bg-red-50 text-outline hover:text-red-600 rounded-lg transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );
