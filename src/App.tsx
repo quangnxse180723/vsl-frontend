@@ -5,7 +5,8 @@ import { authApi } from './services/api/authApi';
 import { categoryApi } from './services/api/categoryApi';
 import { vocabularyApi, VocabularyResponse } from './services/api/vocabularyApi';
 import { attemptApi } from './services/api/attemptApi';
-import { practiceApi } from './services/api/practiceApi';
+import { practiceApi, PracticeStatsResponse } from './services/api/practiceApi';
+import { achievementApi, AchievementApiResponse } from './services/api/achievementApi';
 import { adminApi } from './services/api/adminApi';
 import LoginView from './pages/LoginView';
 import RegisterView from './pages/RegisterView';
@@ -20,6 +21,52 @@ const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69
 const VOCAB_THUMBNAIL = 'https://images.unsplash.com/photo-1543269865-cbf427effbad?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
 const LESSON_THUMBNAIL = 'https://images.unsplash.com/photo-1621644788102-171bba70eb10?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
 
+// BE's Achievement entity has no color field (it's presentation-only), so each
+// known achievement key gets a fixed gradient here. Unknown future keys fall
+// back to a neutral gradient instead of breaking the badge grid.
+const ACHIEVEMENT_COLORS: Record<string, string> = {
+  FIRST_STEP: 'from-sky-400 to-blue-500',
+  CORRECT_10: 'from-emerald-400 to-green-500',
+  CORRECT_50: 'from-fuchsia-400 to-purple-500',
+  LEARNED_5: 'from-amber-400 to-orange-500',
+  LEARNED_20: 'from-teal-400 to-cyan-500',
+  ALL_LEARNED: 'from-yellow-400 to-amber-500',
+  PROFICIENCY_50: 'from-indigo-400 to-violet-500',
+  PROFICIENCY_100: 'from-pink-400 to-rose-500'
+};
+const DEFAULT_ACHIEVEMENT_COLOR = 'from-slate-400 to-slate-500';
+
+// Mirrors the unlock thresholds in AchievementServiceImpl.checkAndUnlock (BE has
+// no endpoint that returns "how close am I", so it's derived here from /practice/stats
+// using the same keys/thresholds as the backend source of truth).
+const ACHIEVEMENT_PROGRESS: Record<string, (s: PracticeStatsResponse) => { current: number; target: number; unit: string }> = {
+  FIRST_STEP: s => ({ current: s.totalAttempts, target: 1, unit: 'lượt' }),
+  CORRECT_10: s => ({ current: s.correctAttempts, target: 10, unit: 'lần đúng' }),
+  CORRECT_50: s => ({ current: s.correctAttempts, target: 50, unit: 'lần đúng' }),
+  LEARNED_5: s => ({ current: s.learnedCount, target: 5, unit: 'từ' }),
+  LEARNED_20: s => ({ current: s.learnedCount, target: 20, unit: 'từ' }),
+  ALL_LEARNED: s => ({ current: s.learnedCount, target: Math.max(s.totalVocabs, 1), unit: 'từ' }),
+  PROFICIENCY_50: s => ({ current: s.proficiency, target: 50, unit: '%' }),
+  PROFICIENCY_100: s => ({ current: s.proficiency, target: 100, unit: '%' })
+};
+
+function mapAchievementResponse(a: AchievementApiResponse, stats: PracticeStatsResponse | null): Achievement {
+  const progressFn = ACHIEVEMENT_PROGRESS[a.key];
+  const progress = progressFn && stats ? progressFn(stats) : undefined;
+
+  return {
+    id: a.id.toString(),
+    title: a.name,
+    description: a.description,
+    icon: a.iconKey,
+    color: ACHIEVEMENT_COLORS[a.key] || DEFAULT_ACHIEVEMENT_COLOR,
+    secured: a.unlocked,
+    progressCurrent: progress ? Math.min(progress.current, progress.target) : undefined,
+    progressTarget: progress?.target,
+    progressUnit: progress?.unit
+  };
+}
+
 function mapUserResponseToUser(u: UserResponse): User {
   return {
     id: u.userId.toString(),
@@ -28,7 +75,8 @@ function mapUserResponseToUser(u: UserResponse): User {
     status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
     proficiency: 0,
     lastActive: 'Vừa xong',
-    avatar: u.avatarUrl || DEFAULT_AVATAR
+    avatar: u.avatarUrl || DEFAULT_AVATAR,
+    role: u.role === 'ADMIN' ? 'ADMIN' : 'USER'
   };
 }
 
@@ -62,14 +110,22 @@ export default function App() {
   const [vocabularyList, setVocabularyList] = useState<Vocabulary[]>([]);
   const [recentResults, setRecentResults] = useState<RecentResult[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [practiceStats, setPracticeStats] = useState<PracticeStatsResponse | null>(null);
 
   // Global Toasts
   const [toastMessage, setToastMessage] = useState('');
+
+  // Admin accounts get a completely separate admin-only experience (no learner UI).
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   // Fetches category/vocabulary/attempt/progress and rebuilds derived dashboard state.
   // Shared by initial load, post-login load, and post-practice refresh so lesson
   // progress always reflects the real backend state instead of a local guess.
   const loadDashboardData = async () => {
+    // Core lesson/progress/history data. Kept in its own try so a failure in the
+    // secondary stats/achievements block below can't wipe the lessons + recent list
+    // (previously all six calls shared one Promise.all, so any single rejection
+    // nuked the entire dashboard).
     try {
       const [catRes, vocabRes, attemptRes, progressRes] = await Promise.all([
         categoryApi.getAll(0, 100),
@@ -102,11 +158,9 @@ export default function App() {
           id: cat.id.toString(),
           title: cat.name,
           description: cat.description,
-          duration: '10 phút',
           level: 'Beginner',
           category: cat.name,
           image: cat.imageUrl || LESSON_THUMBNAIL,
-          rating: 5,
           vocabulary: relatedVocab.map(v => v.id.toString()),
           progress,
           status,
@@ -114,12 +168,13 @@ export default function App() {
         };
       });
 
-      // BE's AttemptResponse only carries a boolean isCorrect (no confidence score
-      // for incorrect attempts), so 0/100 is the honest value here, not a guess.
+      // Use the real model confidence (probability assigned to the expected sign,
+      // 0-100) as this attempt's accuracy. Legacy rows saved before confidence was
+      // tracked have null - fall back to the binary correct/incorrect value there.
       const recentResultsMapped: RecentResult[] = attemptRes.data.map(att => ({
         id: att.attemptId.toString(),
         sign: att.word,
-        accuracy: att.isCorrect ? 100 : 0,
+        accuracy: att.confidence != null ? Math.round(att.confidence) : (att.isCorrect ? 100 : 0),
         icon: 'front_hand',
         statusText: att.isCorrect ? 'Chính xác' : 'Cần luyện thêm',
         timeAgo: new Date(att.attemptedAt).toLocaleDateString()
@@ -129,7 +184,20 @@ export default function App() {
       setLessons(mappedLessons);
       setRecentResults(recentResultsMapped);
     } catch (error) {
-      console.error("Failed to fetch initial data", error);
+      console.error("Failed to fetch core dashboard data", error);
+    }
+
+    // Practice stats (proficiency, streak) + achievements. Independent from the
+    // core block so if this fails, lessons/recent still update, and vice versa.
+    try {
+      const [statsRes, achievementsRes] = await Promise.all([
+        practiceApi.getStats(),
+        achievementApi.getAll()
+      ]);
+      setPracticeStats(statsRes.data);
+      setAchievements(achievementsRes.data.map(a => mapAchievementResponse(a, statsRes.data)));
+    } catch (error) {
+      console.error("Failed to fetch practice stats / achievements", error);
     }
   };
 
@@ -172,10 +240,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (currentTab === 'admin' && isLoggedIn) {
+    if (isAdmin && isLoggedIn) {
       loadAdminUsers();
     }
-  }, [currentTab, isLoggedIn]);
+  }, [isAdmin, isLoggedIn]);
 
   const handleToggleUserStatus = async (userId: string) => {
     const user = users.find(u => u.id === userId);
@@ -375,6 +443,35 @@ export default function App() {
     );
   }
 
+  // Admin accounts land straight in the admin panel - a fully separate full-screen
+  // experience with its own vertical sidebar. They never see the learner UI.
+  if (isAdmin) {
+    return (
+      <>
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 p-4 bg-on-surface text-surface text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-outline-variant/30 animate-pulse">
+            <span className="material-symbols-outlined text-primary text-xl">info</span>
+            {toastMessage}
+          </div>
+        )}
+        <AdminView
+          currentUser={currentUser}
+          users={users}
+          vocabularyList={vocabularyList}
+          lessons={lessons}
+          onToggleUserStatus={handleToggleUserStatus}
+          onCreateUser={handleCreateUser}
+          onUpdateUser={handleAdminUpdateUser}
+          onDeleteUser={handleDeleteUser}
+          onAddVocabulary={handleAddVocabulary}
+          onDeleteVocabulary={handleDeleteVocabulary}
+          onRefreshCategories={loadDashboardData}
+          onLogout={handleLogout}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="bg-mesh min-h-screen flex flex-col md:flex-row antialiased font-sans">
 
@@ -466,21 +563,6 @@ export default function App() {
               <span className="md:inline">Hồ Sơ</span>
             </button>
 
-            {/* Admin link */}
-            <button
-              onClick={() => {
-                setCurrentTab('admin');
-                setSelectedLessonId(null);
-              }}
-              className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center gap-3 transition-colors shrink-0 text-sm font-bold ${
-                currentTab === 'admin'
-                  ? 'bg-primary-container/10 text-primary'
-                  : 'text-outline hover:bg-surface-container-low hover:text-on-surface'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
-              <span className="md:inline">Bảng Quản Trị</span>
-            </button>
           </nav>
         </div>
 
@@ -523,6 +605,7 @@ export default function App() {
                 lessons={lessons}
                 recentResults={recentResults}
                 achievements={achievements}
+                practiceStats={practiceStats}
                 onNavigateToTab={setCurrentTab}
                 onSelectLesson={setSelectedLessonId}
                 onStartDailyChallenge={() => {
@@ -567,20 +650,6 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'admin' && (
-              <AdminView
-                users={users}
-                vocabularyList={vocabularyList}
-                lessons={lessons}
-                onToggleUserStatus={handleToggleUserStatus}
-                onCreateUser={handleCreateUser}
-                onUpdateUser={handleAdminUpdateUser}
-                onDeleteUser={handleDeleteUser}
-                onAddVocabulary={handleAddVocabulary}
-                onDeleteVocabulary={handleDeleteVocabulary}
-                onRefreshCategories={loadDashboardData}
-              />
-            )}
           </>
         )}
       </main>

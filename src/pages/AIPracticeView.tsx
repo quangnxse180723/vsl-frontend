@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Vocabulary } from '../types';
 import { practiceApi } from '../services/api/practiceApi';
 import { Camera, CameraOff, Play, ShieldCheck, HelpCircle, RefreshCw, AlertCircle, Sparkles, X } from 'lucide-react';
-import type * as BodySegmentationModule from '@tensorflow-models/body-segmentation';
-import type { BodySegmenter } from '@tensorflow-models/body-segmentation';
+import type { PoseLandmarker } from '@mediapipe/tasks-vision';
 
 interface AIPracticeViewProps {
   vocabularyList: Vocabulary[];
@@ -43,22 +42,45 @@ export default function AIPracticeView({
   // reference thumbnail is clicked, instead of just showing a static image.
   const [showReferenceVideo, setShowReferenceVideo] = useState(false);
 
-  // Background blur preview - now used to provide a cleaner video feed to the AI.
-  // The blurred canvas is captured and sent to the MediaRecorder, reducing background
-  // noise and helping the AI focus purely on hand and body postures.
-  const [blurStatus, setBlurStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  // Pose-tracking reframe - detects the whole upper body + arms + hands each
+  // frame and redraws a CENTERED SQUARE crop of just the signing region onto
+  // the output canvas. This is tuned to the backend AI model (MViTv2 video
+  // classifier): that model resizes each frame's short side to 224 and then
+  // CENTER-CROPS a 224x224 square. By recording an already-square, signer-
+  // centered clip, the whole gesture (arm included, not just the hand) survives
+  // that center-crop at a consistent scale that matches the model's training
+  // framing - which is what actually raises recognition accuracy. Whole arm,
+  // not a tight hand zoom, because sign language uses the full arm.
+  // 'unsupported' = detection loaded but is too slow on this device to run live
+  // (see slow-frame detection in the render loop); distinct from 'error' (the
+  // model itself failed to load).
+  const [poseTrackStatus, setPoseTrackStatus] = useState<'loading' | 'ready' | 'error' | 'unsupported'>('loading');
+
+  // Set whenever the render loop hasn't produced a successful frame in a while -
+  // driven by a "time since last success" watchdog rather than only catching
+  // thrown errors, since a device-specific issue can make every frame silently
+  // no-op without ever throwing.
+  const [poseTrackRuntimeIssue, setPoseTrackRuntimeIssue] = useState(false);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const outputCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const guideBoxRef = useRef<HTMLDivElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
-  const animationRef = useRef<number | null>(null);
-  const segmenterRef = useRef<BodySegmenter | null>(null);
-  const bodySegmentationModuleRef = useRef<typeof BodySegmentationModule | null>(null);
-  const blurLoopRef = useRef<number | null>(null);
-  const lastBlurFrameAtRef = useRef(0);
+  const detectorRef = useRef<PoseLandmarker | null>(null);
+  const poseLoopRef = useRef<number | null>(null);
+  const lastPoseFrameAtRef = useRef(0);
+  const lastPoseSuccessAtRef = useRef(0);
+  // detectForVideo requires strictly-increasing timestamps; guard against two
+  // frames landing on the same performance.now() value.
+  const lastDetectTimestampRef = useRef(0);
+  // Smoothed square crop box (in full-res video pixel coords), carried across
+  // frames so the crop doesn't jitter with small keypoint fluctuations, and so
+  // a brief missed detection doesn't instantly snap back to full frame.
+  const smoothedCropRef = useRef<{ cx: number; cy: number; side: number } | null>(null);
+  const framesSincePoseSeenRef = useRef(0);
 
   // Update selected sign when prop changes
   useEffect(() => {
@@ -102,125 +124,266 @@ export default function AIPracticeView({
     }
   };
 
-  // Load the person-segmentation model once, lazily (dynamic import keeps tfjs
-  // out of the main bundle until someone actually opens this practice page).
-  // Model files are self-hosted under public/models/selfie_segmentation instead
-  // of the library's default (https://tfhub.dev/...) so blur doesn't silently
-  // fail to load on a slow/restricted network - it was previously depending on
-  // reaching Google's TF Hub at runtime with no visible error if that failed.
+  // Load the pose landmark model once, lazily (dynamic import keeps the WASM
+  // runtime out of the main bundle until someone actually opens this practice
+  // page). Uses MediaPipe Tasks Vision (@mediapipe/tasks-vision) PoseLandmarker
+  // with the CPU delegate - i.e. detection runs purely in WebAssembly on the
+  // CPU, not via WebGL/GPU. Deliberate: this machine's weak integrated GPU was
+  // the problem that killed earlier WebGL-based features, and CPU/WASM is what
+  // the user asked for.
+  //
+  // Pose (not Hand) because sign language uses the whole arm - we need the
+  // shoulder/elbow/wrist joints, not just the 21 hand points, to frame the
+  // full signing region.
+  //
+  // Both the WASM binaries and the model file are self-hosted under
+  // public/models/mediapipe_hands/ rather than fetched from a CDN, so this
+  // doesn't depend on reaching an external host at runtime. (An earlier attempt
+  // using @tensorflow-models/hand-pose-detection failed precisely because its
+  // default model URLs point at TF Hub, which has migrated to Kaggle and no
+  // longer serves those files.) tasks-vision is also a clean ES module, so it
+  // avoids the Vite/UMD bundling breakage that the older @mediapipe/* script-tag
+  // packages hit.
   useEffect(() => {
     let cancelled = false;
+    // A hung fetch/WASM-init (as opposed to a rejected promise) would otherwise
+    // leave poseTrackStatus stuck at 'loading' forever with no error to catch.
+    const LOAD_TIMEOUT_MS = 20000;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Tải mô hình nhận diện tư thế quá thời gian chờ')), LOAD_TIMEOUT_MS);
+    });
+
     (async () => {
-      const [tf, , bodySegmentation] = await Promise.all([
-        import('@tensorflow/tfjs-core'),
-        import('@tensorflow/tfjs-backend-webgl'),
-        import('@tensorflow-models/body-segmentation'),
+      await Promise.race([
+        (async () => {
+          const { FilesetResolver, PoseLandmarker } = await import('@mediapipe/tasks-vision');
+          // Note: the self-hosted assets live under .../mediapipe_hands/ for
+          // historical reasons (the dir was created for an earlier hand model);
+          // it now holds the pose model + shared WASM. Kept as-is to avoid a
+          // locked-directory rename; the path is what matters, not the name.
+          const vision = await FilesetResolver.forVisionTasks('/models/mediapipe_hands/wasm');
+          const detector = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: '/models/mediapipe_hands/pose_landmarker_lite.task',
+              delegate: 'CPU',
+            },
+            runningMode: 'VIDEO',
+            numPoses: 1,
+          });
+          if (cancelled) {
+            detector.close();
+            return;
+          }
+          detectorRef.current = detector;
+          setPoseTrackStatus('ready');
+        })(),
+        timeoutPromise,
       ]);
-      await tf.ready();
-      const segmenter = await bodySegmentation.createSegmenter(
-        bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
-        { runtime: 'tfjs', modelType: 'general', modelUrl: '/models/selfie_segmentation/model.json' }
-      );
-      if (cancelled) {
-        segmenter.dispose();
-        return;
-      }
-      segmenterRef.current = segmenter;
-      bodySegmentationModuleRef.current = bodySegmentation;
-      setBlurStatus('ready');
     })().catch(e => {
-      console.error('Failed to load background-blur model:', e);
-      if (!cancelled) setBlurStatus('error');
+      console.error('Failed to load pose-tracking model:', e);
+      if (!cancelled) setPoseTrackStatus('error');
     });
 
     return () => {
       cancelled = true;
-      segmenterRef.current?.dispose();
-      segmenterRef.current = null;
+      detectorRef.current?.close();
+      detectorRef.current = null;
     };
   }, []);
 
-  // Continuously redraws the camera feed onto a canvas with the background
-  // blurred and only the person left sharp. The MediaRecorder below will capture
-  // this canvas stream, so the clip sent to the AI model will benefit from reduced
-  // background noise.
-  // Throttled to ~15fps: segmentation is the expensive part of this loop, and the
-  // background doesn't need full framerate smoothness, so this caps CPU/GPU load
-  // instead of re-running inference as fast as the device possibly can.
+  // Each frame: detect the signer's pose, compute a CENTERED SQUARE crop that
+  // contains the whole signing region (head + shoulders + arms + hands), and
+  // draw that square onto the output canvas. The MediaRecorder below captures
+  // this canvas, so the clip uploaded to the backend is already a signer-
+  // centered square. That is tuned to the backend model's preprocessing
+  // (short-side resize to 224 + center-crop 224x224): a square, centered input
+  // means the whole gesture survives the crop at a consistent scale, which is
+  // what raises recognition accuracy.
+  //
+  // The canvas is drawn UN-MIRRORED (true left/right orientation) because the
+  // recorded pixels go to the model and sign handedness matters. The on-screen
+  // preview is mirrored separately via a CSS transform on the canvas element,
+  // which does NOT affect the captured pixels.
+  //
+  // Throttled to ~15fps: detection is the expensive part, so this caps CPU load
+  // instead of re-running inference every animation frame.
   useEffect(() => {
-    if (!useRealCamera || blurStatus !== 'ready') return;
+    if (!useRealCamera || poseTrackStatus !== 'ready') return;
     let active = true;
+    let errorLogged = false;
+    let slowFrameStreak = 0;
     const TARGET_FRAME_INTERVAL_MS = 66;
+    const WATCHDOG_TIMEOUT_MS = 4000;
+    const WATCHDOG_CHECK_INTERVAL_MS = 1000;
+    // A weak CPU can take a long time per detection. Looping that forever pegs
+    // the CPU continuously for no benefit, since a frame that slow will never
+    // feel "live" anyway - detect a sustained slow streak and give up.
+    const SLOW_FRAME_THRESHOLD_MS = 1200;
+    const SLOW_FRAME_STREAK_TO_GIVE_UP = 3;
+    // Frames without a confident pose before the crop resets to full-frame -
+    // avoids snapping the instant the person briefly leaves frame or a single
+    // detection is missed.
+    const FRAMES_TO_LOSE_LOCK = 12;
+    // Exponential-smoothing factor for the crop box - lower = smoother/slower,
+    // higher = snappier but more jittery.
+    const CROP_SMOOTHING = 0.2;
+    // Padding around the raw landmark bounding box, as a fraction of the box's
+    // larger side - keeps the arms/hands from touching the crop edges.
+    const CROP_PADDING = 0.25;
+    // Pose landmark indices that bound the signing region: nose (head), both
+    // shoulders, elbows, wrists, and the hand tips (pinky/index/thumb).
+    const SIGNING_LANDMARKS = [0, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+    const MIN_VISIBILITY = 0.3;
+    lastPoseSuccessAtRef.current = performance.now();
+    smoothedCropRef.current = null;
+    framesSincePoseSeenRef.current = 0;
 
-    const renderFrame = async (now: number) => {
+    const watchdogId = window.setInterval(() => {
+      if (performance.now() - lastPoseSuccessAtRef.current > WATCHDOG_TIMEOUT_MS) {
+        setPoseTrackRuntimeIssue(true);
+      }
+    }, WATCHDOG_CHECK_INTERVAL_MS);
+
+    const giveUp = () => {
+      active = false;
+      window.clearInterval(watchdogId);
+      setPoseTrackStatus('unsupported');
+    };
+
+    const renderFrame = (now: number) => {
       if (!active) return;
 
-      if (now - lastBlurFrameAtRef.current < TARGET_FRAME_INTERVAL_MS) {
-        blurLoopRef.current = requestAnimationFrame(renderFrame);
+      if (now - lastPoseFrameAtRef.current < TARGET_FRAME_INTERVAL_MS) {
+        poseLoopRef.current = requestAnimationFrame(renderFrame);
         return;
       }
-      lastBlurFrameAtRef.current = now;
+      lastPoseFrameAtRef.current = now;
 
       const video = videoRef.current;
-      const canvas = previewCanvasRef.current;
-      const segmenter = segmenterRef.current;
-      const bodySegmentation = bodySegmentationModuleRef.current;
+      const canvas = outputCanvasRef.current;
+      const detector = detectorRef.current;
 
-      if (video && canvas && segmenter && bodySegmentation && video.readyState >= 2 && video.videoWidth > 0) {
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+      if (video && canvas && detector && video.readyState >= 2 && video.videoWidth > 0) {
+        const vw = video.videoWidth, vh = video.videoHeight;
+        // Output a SQUARE canvas (side = the frame's shorter dimension) so the
+        // recorded clip is already square - matches the backend's center-crop.
+        const outSide = Math.min(vw, vh);
+        if (canvas.width !== outSide || canvas.height !== outSide) {
+          canvas.width = outSide;
+          canvas.height = outSide;
         }
-        // body-segmentation reads the HTML width/height attributes (not videoWidth/
-        // videoHeight) to size its internal mask tensor. We only size the element via
-        // CSS, so those attributes default to 0 - producing a zero-sized mask tensor
-        // and the "source width is zero" ImageData error. Keep them mirrored here.
-        if (video.width !== video.videoWidth) video.width = video.videoWidth;
-        if (video.height !== video.videoHeight) video.height = video.videoHeight;
-        try {
-          const segmentation = await segmenter.segmentPeople(video);
-          await bodySegmentation.drawBokehEffect(
-            canvas, video, segmentation,
-            /* foregroundThreshold */ 0.5,
-            /* backgroundBlurAmount */ 10,
-            /* edgeBlurAmount */ 5,
-            /* flipHorizontal */ false
-          );
 
-          // Free the GPU tensor backing each mask. The 'tfjs' runtime's mask wrapper
-          // has no dispose()/close() method of its own - segmentPeople() returns a live
-          // tensor (sized to the video's resolution, e.g. ~14MB at 1280x720) that is
-          // never freed unless we pull it out via toTensor() and dispose it ourselves.
-          // Without this, GPU memory climbs every frame until WebGL loses its context.
-          if (segmentation && segmentation.length > 0) {
-            await Promise.all(segmentation.map(async (person) => {
-              const maskTensor = await person.mask.toTensor();
-              maskTensor.dispose();
-            }));
+        // detectForVideo needs strictly-increasing timestamps (ms).
+        let ts = Math.round(now);
+        if (ts <= lastDetectTimestampRef.current) ts = lastDetectTimestampRef.current + 1;
+        lastDetectTimestampRef.current = ts;
+
+        const frameStart = performance.now();
+        try {
+          // Synchronous inference - MediaPipe Tasks resizes the video to its
+          // model input internally, so we hand it the raw video element.
+          const result = detector.detectForVideo(video, ts);
+          const duration = performance.now() - frameStart;
+
+          const ctx = canvas.getContext('2d')!;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          const pose = result.landmarks && result.landmarks[0];
+          const pts = pose
+            ? SIGNING_LANDMARKS
+                .map(i => pose[i])
+                .filter(p => p && (p.visibility === undefined || p.visibility >= MIN_VISIBILITY))
+            : [];
+
+          if (pts.length >= 3) {
+            framesSincePoseSeenRef.current = 0;
+            // Landmarks are normalized (0..1); scale to full video pixels.
+            const xs = pts.map(p => p.x * vw);
+            const ys = pts.map(p => p.y * vh);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const boxW = maxX - minX, boxH = maxY - minY;
+            const cx = minX + boxW / 2, cy = minY + boxH / 2;
+            // Square side = larger bbox dimension + padding, capped to the frame.
+            const side = Math.min(Math.max(boxW, boxH) * (1 + 2 * CROP_PADDING), outSide);
+
+            const target = { cx, cy, side };
+            const prev = smoothedCropRef.current;
+            smoothedCropRef.current = prev ? {
+              cx: prev.cx + (target.cx - prev.cx) * CROP_SMOOTHING,
+              cy: prev.cy + (target.cy - prev.cy) * CROP_SMOOTHING,
+              side: prev.side + (target.side - prev.side) * CROP_SMOOTHING,
+            } : target;
+          } else {
+            framesSincePoseSeenRef.current++;
+            if (framesSincePoseSeenRef.current > FRAMES_TO_LOSE_LOCK) {
+              smoothedCropRef.current = null;
+            }
+          }
+
+          // Resolve the source square to copy from the video (clamped inside frame).
+          const crop = smoothedCropRef.current;
+          let sx: number, sy: number, sSide: number;
+          if (crop) {
+            sSide = Math.min(crop.side, outSide);
+            sx = Math.max(0, Math.min(vw - sSide, crop.cx - sSide / 2));
+            sy = Math.max(0, Math.min(vh - sSide, crop.cy - sSide / 2));
+          } else {
+            // Fallback: centered square of the full frame.
+            sSide = outSide;
+            sx = (vw - sSide) / 2;
+            sy = (vh - sSide) / 2;
+          }
+          // Draw un-mirrored (true orientation). Preview mirroring is CSS-only.
+          ctx.drawImage(video, sx, sy, sSide, sSide, 0, 0, canvas.width, canvas.height);
+
+          // Position the on-screen guide box over the NATURAL (mirrored) camera preview
+          // so the user sees exactly the square region that gets recorded + scored,
+          // without the preview itself being cropped/zoomed. X is mirrored because the
+          // preview <video> is flipped via scaleX(-1). Assumes a 16:9 feed filling the
+          // 16:9 panel (object-cover, no crop) so video pixels map 1:1 to panel %.
+          const guide = guideBoxRef.current;
+          if (guide) {
+            guide.style.left = `${(1 - (sx + sSide) / vw) * 100}%`;
+            guide.style.top = `${(sy / vh) * 100}%`;
+            guide.style.width = `${(sSide / vw) * 100}%`;
+            guide.style.height = `${(sSide / vh) * 100}%`;
+            guide.style.opacity = '1';
+          }
+
+          if (duration > SLOW_FRAME_THRESHOLD_MS) {
+            slowFrameStreak++;
+            if (slowFrameStreak >= SLOW_FRAME_STREAK_TO_GIVE_UP) {
+              giveUp();
+              return;
+            }
+          } else {
+            slowFrameStreak = 0;
+            lastPoseSuccessAtRef.current = performance.now();
+            setPoseTrackRuntimeIssue(false);
           }
         } catch (e) {
-          // Skip this frame, but log once so a persistent failure is diagnosable
-          // instead of silently looking like blur just never activates.
-          if (!(window as any).__blurFrameErrorLogged) {
-            (window as any).__blurFrameErrorLogged = true;
-            console.error('Background-blur frame draw failed:', e);
+          if (!errorLogged) {
+            errorLogged = true;
+            console.error('Pose-tracking frame failed:', e);
           }
         }
       }
-      if (active) blurLoopRef.current = requestAnimationFrame(renderFrame);
+      if (active) poseLoopRef.current = requestAnimationFrame(renderFrame);
     };
 
-    blurLoopRef.current = requestAnimationFrame(renderFrame);
+    poseLoopRef.current = requestAnimationFrame(renderFrame);
     return () => {
       active = false;
-      if (blurLoopRef.current) cancelAnimationFrame(blurLoopRef.current);
+      if (poseLoopRef.current) cancelAnimationFrame(poseLoopRef.current);
+      window.clearInterval(watchdogId);
+      setPoseTrackRuntimeIssue(false);
     };
-  }, [useRealCamera, blurStatus]);
+  }, [useRealCamera, poseTrackStatus]);
 
-  // Draws a static framing overlay (recording bounds) over the camera preview.
-  // This is deliberately NOT a hand-tracking visualization: no landmark detection
-  // runs client-side. The actual AI evaluation only happens server-side, after the
-  // clip is uploaded to POST /api/practice/evaluate.
+  // Draws only the contextual text hint over the camera preview. The old rectangular
+  // "recording bounds" border + corner accents were removed - the live AI focus guide
+  // box now shows the actual capture region, so the static rectangle was redundant.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -229,25 +392,8 @@ export default function AIPracticeView({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const margin = 40;
-    const len = 20;
     const w = canvas.width;
     const h = canvas.height;
-
-    ctx.strokeStyle = '#6063ee';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(margin, margin, w - margin * 2, h - margin * 2);
-
-    ctx.strokeStyle = '#4648d4';
-    ctx.lineWidth = 4;
-    // Top Left
-    ctx.beginPath(); ctx.moveTo(margin, margin + len); ctx.lineTo(margin, margin); ctx.lineTo(margin + len, margin); ctx.stroke();
-    // Top Right
-    ctx.beginPath(); ctx.moveTo(w - margin, margin + len); ctx.lineTo(w - margin, margin); ctx.lineTo(w - margin - len, margin); ctx.stroke();
-    // Bottom Left
-    ctx.beginPath(); ctx.moveTo(margin, h - margin - len); ctx.lineTo(margin, h - margin); ctx.lineTo(margin + len, h - margin); ctx.stroke();
-    // Bottom Right
-    ctx.beginPath(); ctx.moveTo(w - margin, h - margin - len); ctx.lineTo(w - margin, h - margin); ctx.lineTo(w - margin - len, h - margin); ctx.stroke();
 
     ctx.fillStyle = '#767586';
     ctx.font = '14px inherit';
@@ -276,11 +422,12 @@ export default function AIPracticeView({
       setCalibrationStep('Đang quay cử chỉ của bạn (5s)...');
       setProgressWidth(20);
       
-      // Capture the blurred canvas stream if ready, otherwise fallback to the raw camera stream
-      const streamToRecord = (blurStatus === 'ready' && previewCanvasRef.current)
-        ? (previewCanvasRef.current as any).captureStream(30)
+      // Capture the pose-reframed (centered square) canvas stream if ready,
+      // otherwise fall back to the raw camera stream.
+      const streamToRecord = (poseTrackStatus === 'ready' && outputCanvasRef.current)
+        ? (outputCanvasRef.current as any).captureStream(30)
         : cameraStream;
-        
+
       const mediaRecorder = new MediaRecorder(streamToRecord, { mimeType: 'video/webm' });
       mediaRecorderRef.current = mediaRecorder;
       recordedChunksRef.current = [];
@@ -395,29 +542,47 @@ export default function AIPracticeView({
           {/* Feed Canvas Panel */}
           <div className="bg-neutral-900 rounded-2xl relative w-full overflow-hidden aspect-video elevation-2 border border-outline-variant/30 text-white">
             
-            {/* The Raw Camera Video Tag - mirrored (scaleX(-1)) so it feels like looking in a mirror.
-                Serves as the visible layer until the blur canvas above it starts painting, and
-                as the actual source frames the blur canvas reads from. */}
+            {/* The Raw Camera Video Tag - mirrored (scaleX(-1)) so it feels like looking in a
+                mirror. This is now the ALWAYS-VISIBLE natural preview: the user sees the full,
+                un-zoomed camera (no jarring centered-square crop). The reframing still happens
+                for the recorded clip on the hidden output canvas below. */}
             {useRealCamera && (
               <video
                 ref={videoRef}
-                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                className="absolute inset-0 w-full h-full object-cover"
                 style={{ transform: 'scaleX(-1)' }}
                 playsInline
                 muted
               />
             )}
 
-            {/* Background-blur preview canvas - sits on top of the raw video and, once the
-                segmentation model is ready, redraws each frame with the background blurred and
-                only the person left sharp. Transparent until the first frame is drawn, so the
-                raw video shows through as a fallback while the model is still loading. */}
+            {/* Pose-reframed output canvas - the RECORD SOURCE only, kept visually hidden
+                (opacity-0) so the preview stays natural. Each frame it redraws a centered
+                square cropped to the signing region (whole arm + hands) in UN-MIRRORED
+                pixels; captureStream() reads this canvas at record time, so hiding it does
+                not affect what gets recorded or scored. */}
             {useRealCamera && (
               <canvas
-                ref={previewCanvasRef}
-                className="absolute inset-0 w-full h-full object-cover"
+                ref={outputCanvasRef}
+                className="absolute inset-0 w-full h-full object-contain opacity-0 pointer-events-none"
                 style={{ transform: 'scaleX(-1)' }}
               />
+            )}
+
+            {/* Live AI focus guide - a box over the natural preview marking the exact square
+                region that gets recorded + scored, with a spotlight dim on everything outside
+                it (the huge box-shadow is clipped to the panel by overflow-hidden). Positioned
+                each frame from the pose crop; hidden until pose-tracking is actually working. */}
+            {useRealCamera && poseTrackStatus === 'ready' && !poseTrackRuntimeIssue && (
+              <div
+                ref={guideBoxRef}
+                className="absolute z-[15] pointer-events-none rounded-lg border-2 border-primary/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] transition-opacity duration-200"
+                style={{ left: '25%', top: '0%', width: '50%', height: '100%', opacity: 0 }}
+              >
+                <span className="absolute top-1 left-1 text-[9px] font-bold text-white bg-primary/80 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                  Vùng AI chấm điểm
+                </span>
+              </div>
             )}
 
             {/* Recording frame overlay (decorative bounding box, not real-time tracking) */}
@@ -439,35 +604,25 @@ export default function AIPracticeView({
               <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white/90 text-[10px] font-semibold rounded-lg font-mono">
                 {useRealCamera ? 'Đang Có Hình' : 'Chưa Bật Camera'}
               </span>
-              {useRealCamera && blurStatus !== 'ready' && (
+              {useRealCamera && poseTrackStatus !== 'ready' && (
                 <span className={`px-3 py-1 backdrop-blur-md text-[10px] font-semibold rounded-lg flex items-center gap-1.5 ${
-                  blurStatus === 'loading' ? 'bg-black/60 text-white/90' : 'bg-amber-500/80 text-white'
+                  poseTrackStatus === 'loading' ? 'bg-black/60 text-white/90' : 'bg-amber-500/80 text-white'
                 }`}>
-                  {blurStatus === 'loading' ? (
+                  {poseTrackStatus === 'loading' && (
                     <>
                       <span className="w-2.5 h-2.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
-                      Đang tải hiệu ứng mờ nền...
+                      Đang tải nhận diện tư thế...
                     </>
-                  ) : (
-                    'Không tải được hiệu ứng mờ nền'
                   )}
+                  {poseTrackStatus === 'error' && 'Không tải được nhận diện tư thế'}
+                  {poseTrackStatus === 'unsupported' && 'Máy này không đủ mạnh để nhận diện tư thế'}
                 </span>
               )}
-            </div>
-
-            {/* Top Right Overall Dynamic Score Gauge overlay */}
-            <div className="absolute top-4 right-4 z-20 glass-card text-on-surface p-3.5 rounded-2xl flex items-center gap-3 border border-indigo-400/30">
-              <div className="relative w-12 h-12 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path className="text-surface-variant" strokeDasharray="100, 100" strokeWidth="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                  <path className="text-primary" strokeDasharray={`${overallScore ?? 0}, 100`} strokeWidth="3" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                </svg>
-                <span className="absolute text-xs font-display font-extrabold text-primary">{overallScore !== null ? `${overallScore}%` : '--'}</span>
-              </div>
-              <div className="leading-tight">
-                <p className="text-[10px] text-outline font-extrabold uppercase">Độ Khớp Tổng Thể</p>
-                <p className="text-xs font-bold text-on-surface">{overallScore === null ? 'Chưa quét' : overallScore >= 90 ? 'Đã thành thạo!' : 'Đang hiệu chỉnh...'}</p>
-              </div>
+              {useRealCamera && poseTrackStatus === 'ready' && poseTrackRuntimeIssue && (
+                <span className="px-3 py-1 bg-amber-500/80 backdrop-blur-md text-white text-[10px] font-semibold rounded-lg flex items-center gap-1.5">
+                  Không thể nhận diện tư thế trên máy này - đang dùng hình gốc
+                </span>
+              )}
             </div>
 
             {/* Recording indicator - deliberately lightweight (no dark backdrop) so the camera
@@ -537,6 +692,24 @@ export default function AIPracticeView({
               {isRecording ? 'Đang quay...' : isDetecting ? 'Đang phân tích tọa độ...' : 'Hiệu Chỉnh & Quét'}
             </button>
           </div>
+
+          {/* Explicit, always-visible pose-tracking status line - the small corner
+              badge above is easy to miss, so this spells out the same state in plain
+              text right under the controls the user is already looking at. */}
+          {useRealCamera && (
+            <p className={`text-xs font-semibold flex items-center gap-1.5 ${
+              poseTrackStatus === 'ready' && !poseTrackRuntimeIssue ? 'text-green-700' : 'text-amber-600'
+            }`}>
+              <span className="material-symbols-outlined text-sm">
+                {poseTrackStatus === 'ready' && !poseTrackRuntimeIssue ? 'accessibility_new' : 'pan_tool_alert'}
+              </span>
+              {poseTrackStatus === 'loading' && 'Khung hình: đang tải mô hình nhận diện tư thế...'}
+              {poseTrackStatus === 'error' && 'Khung hình: không tải được mô hình - đang dùng hình gốc.'}
+              {poseTrackStatus === 'unsupported' && 'Khung hình: máy này không đủ mạnh - đã tắt, dùng hình gốc.'}
+              {poseTrackStatus === 'ready' && poseTrackRuntimeIssue && 'Khung hình: nhận diện không hoạt động - đang dùng hình gốc.'}
+              {poseTrackStatus === 'ready' && !poseTrackRuntimeIssue && 'Khung hình: tự động căn vào tay + cánh tay để AI chấm chính xác hơn.'}
+            </p>
+          )}
 
           {/* Subgrade Diagnostics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

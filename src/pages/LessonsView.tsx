@@ -152,14 +152,11 @@ export default function LessonsView({ lessons, onSelectLesson, onNavigateToTab }
 
               {/* Detail block footer */}
               <div className="px-6 pb-6 pt-3 flex items-center justify-between border-t border-outline-variant/20">
-                <div className="flex items-center space-x-3 text-xs text-outline font-semibold">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px]">schedule</span> {lesson.duration}
+                <div className={`flex items-center gap-1 text-xs font-semibold ${lesson.progress === 100 ? 'text-green-600' : 'text-primary'}`}>
+                  <span className="material-symbols-outlined text-[16px]">
+                    {lesson.progress === 100 ? 'check_circle' : 'donut_large'}
                   </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px] text-amber-500">star</span> {lesson.rating}
-                  </span>
+                  {lesson.progress}% hoàn thành
                 </div>
                 <span className="material-symbols-outlined text-primary group-hover:translate-x-1.5 transition-transform">
                   arrow_forward

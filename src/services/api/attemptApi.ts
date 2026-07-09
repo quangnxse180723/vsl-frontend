@@ -11,6 +11,9 @@ export interface AttemptResponse {
   expectedId: number;
   isCorrect: boolean;
   aiPredictedCode: number;
+  // Model's probability for the expected sign (0-100). Null for legacy attempts
+  // recorded before confidence was tracked.
+  confidence: number | null;
   attemptedAt: string;
 }
 

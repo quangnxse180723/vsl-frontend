@@ -28,8 +28,6 @@ export interface Lesson {
   status: 'Mastered' | 'In Progress' | 'Not Started';
   image: string;
   description: string;
-  duration: string;
-  rating: number;
   breadcrumbs?: string[];
   tips?: string;
   mistakes?: string;
@@ -62,6 +60,10 @@ export interface Achievement {
   icon: string;
   color: string;
   secured: boolean;
+  // Progress towards unlocking, e.g. 2/10. Undefined when BE gave no stats to derive it from.
+  progressCurrent?: number;
+  progressTarget?: number;
+  progressUnit?: string;
 }
 
 export interface RecentResult {

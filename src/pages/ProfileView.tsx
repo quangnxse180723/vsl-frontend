@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { User, Achievement } from '../types';
 import { userApi } from '../services/api/userApi';
-import { Award, Shield, Bell, Eye, Volume2, LogOut, Save, Camera, Check } from 'lucide-react';
+import { Award, Shield, Bell, Eye, Volume2, LogOut, Save, Camera, Check, ChevronDown } from 'lucide-react';
 
 interface ProfileViewProps {
   currentUser: User;
@@ -25,6 +25,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Password change fields, backed by PUT /api/users/password
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
@@ -78,6 +79,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
       await userApi.updatePassword({ oldPassword, newPassword });
       setOldPassword('');
       setNewPassword('');
+      setShowPasswordForm(false);
       flashSuccess('Đổi mật khẩu thành công!');
     } catch (error) {
       flashError('Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu hiện tại.');
@@ -287,33 +289,44 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
               <h3 className="font-display text-lg font-bold">Bảo Mật</h3>
             </div>
 
-            <form onSubmit={handleChangePassword} className="space-y-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Mật Khẩu Hiện Tại</label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Mật Khẩu Mới</label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={changingPassword}
-                className="w-full py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded-xl font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5 active-scale disabled:opacity-60"
-              >
-                {changingPassword ? 'Đang cập nhật...' : 'Đổi Mật Khẩu'}
-              </button>
-            </form>
+            <button
+              type="button"
+              onClick={() => setShowPasswordForm(prev => !prev)}
+              className="w-full flex items-center justify-between py-1"
+            >
+              <span className="text-sm font-bold text-on-surface">Đổi Mật Khẩu</span>
+              <ChevronDown className={`w-4 h-4 text-outline transition-transform ${showPasswordForm ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showPasswordForm && (
+              <form onSubmit={handleChangePassword} className="space-y-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-outline">Mật Khẩu Hiện Tại</label>
+                  <input
+                    type="password"
+                    className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-outline">Mật Khẩu Mới</label>
+                  <input
+                    type="password"
+                    className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="w-full py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded-xl font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5 active-scale disabled:opacity-60"
+                >
+                  {changingPassword ? 'Đang cập nhật...' : 'Lưu Mật Khẩu Mới'}
+                </button>
+              </form>
+            )}
 
             <div className="pt-4 border-t border-outline-variant/15">
               <button
@@ -342,17 +355,39 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   className={`p-4 rounded-xl border flex flex-col items-center text-center space-y-2.5 transition-all ${
                     ach.secured
                       ? 'bg-surface-container-low/40 border-outline-variant/30 hover:border-primary'
-                      : 'bg-surface-container-low/10 border-outline-variant/10 opacity-60'
+                      : 'bg-surface-container-low/10 border-outline-variant/10'
                   }`}
                 >
-                  <div className={`w-12 h-12 bg-gradient-to-br ${ach.color} rounded-full flex items-center justify-center text-white shadow-sm`}>
+                  <div
+                    className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${
+                      ach.secured ? `bg-gradient-to-br ${ach.color} text-white` : 'bg-slate-200 text-slate-400'
+                    }`}
+                  >
                     <span className="material-symbols-outlined text-2xl font-bold">
                       {ach.icon}
                     </span>
+                    {!ach.secured && (
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-slate-500 border-2 border-white flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[11px] text-white leading-none">lock</span>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h4 className="font-label-bold text-xs text-[#111111]">{ach.title}</h4>
+                  <div className="w-full">
+                    <h4 className={`font-label-bold text-xs ${ach.secured ? 'text-[#111111]' : 'text-outline'}`}>{ach.title}</h4>
                     <p className="text-[10px] text-outline mt-0.5">{ach.description}</p>
+                    {!ach.secured && ach.progressTarget !== undefined && (
+                      <div className="mt-2 space-y-1">
+                        <div className="w-full h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary/60 rounded-full"
+                            style={{ width: `${Math.min((ach.progressCurrent! / ach.progressTarget) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] font-bold text-primary">
+                          {ach.progressCurrent}/{ach.progressTarget} {ach.progressUnit}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

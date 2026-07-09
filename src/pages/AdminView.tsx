@@ -4,6 +4,7 @@ import { adminApi, AdminCategoryResponse } from '../services/api/adminApi';
 import { Upload, Users, Activity, BarChart, Server, Sparkles, Plus, Smile, RefreshCw, Trash2, Pencil, X } from 'lucide-react';
 
 interface AdminViewProps {
+  currentUser: User;
   users: User[];
   vocabularyList: Vocabulary[];
   lessons: Lesson[];
@@ -14,9 +15,11 @@ interface AdminViewProps {
   onAddVocabulary: (newVocab: { name: string; categoryId: number; description: string; expectedId?: number; file?: File; imageFile?: File }) => void;
   onDeleteVocabulary: (vocabId: string) => void;
   onRefreshCategories: () => void;
+  onLogout: () => void;
 }
 
 export default function AdminView({
+  currentUser,
   users,
   vocabularyList,
   lessons,
@@ -26,7 +29,8 @@ export default function AdminView({
   onDeleteUser,
   onAddVocabulary,
   onDeleteVocabulary,
-  onRefreshCategories
+  onRefreshCategories,
+  onLogout
 }: AdminViewProps) {
   // Add vocab fields
   const [vocabName, setVocabName] = useState('');
@@ -40,6 +44,9 @@ export default function AdminView({
   const [vocabSearchQuery, setVocabSearchQuery] = useState('');
 
   const [notification, setNotification] = useState('');
+
+  // Muc dang xem trong trang admin - chia trang lon thanh 4 phan rieng cho de quan ly.
+  const [adminSection, setAdminSection] = useState<'overview' | 'users' | 'categories' | 'vocabulary'>('overview');
 
   // Category management (fetched directly here - not part of App's shared state)
   const [categories, setCategories] = useState<AdminCategoryResponse[]>([]);
@@ -254,24 +261,101 @@ export default function AdminView({
     setUploadedImage(null);
   };
 
-  return (
-    <div className="space-y-8 animate-fade-in text-on-surface">
-      
-      {/* Intro Header */}
-      <section>
-        <h2 className="font-display text-3xl font-extrabold text-[#111111]">Bảng Quản Trị</h2>
-        <p className="text-body-md text-on-surface-variant">Theo dõi số liệu hệ thống, quản lý người dùng và bổ sung từ vựng mới.</p>
-      </section>
+  const SECTION_META = {
+    overview:   { title: 'Tổng Quan',            desc: 'Theo dõi số liệu hệ thống và độ chính xác của mô hình AI.' },
+    users:      { title: 'Quản Lý Người Dùng',   desc: 'Xem, phân quyền và bật/tắt hoạt động của học viên.' },
+    categories: { title: 'Quản Lý Danh Mục',     desc: 'Tạo, đổi tên hoặc xóa danh mục từ vựng.' },
+    vocabulary: { title: 'Quản Lý Từ Vựng',      desc: 'Thêm từ vựng mới và quản lý danh sách đã đăng ký.' },
+  } as const;
 
-      {/* Notifications */}
-      {notification && (
-        <div className="p-4 bg-green-100 text-green-800 rounded-xl font-semibold flex items-center gap-2 border border-green-200">
-          <span className="material-symbols-outlined text-green-700">check_circle</span>
-          {notification}
+  const NAV_TABS = [
+    { key: 'overview',   label: 'Tổng Quan',  icon: 'monitoring' },
+    { key: 'users',      label: 'Người Dùng', icon: 'group' },
+    { key: 'categories', label: 'Danh Mục',   icon: 'category' },
+    { key: 'vocabulary', label: 'Từ Vựng',    icon: 'menu_book' },
+  ] as const;
+
+  return (
+    <div className="bg-mesh min-h-screen flex flex-col md:flex-row antialiased font-sans text-on-surface">
+
+      {/* Admin vertical sidebar - tach biet hoan toan voi sidebar cua nguoi dung */}
+      <aside className="w-full md:w-64 bg-surface-container-lowest shrink-0 border-b md:border-b-0 md:border-r border-outline-variant/30 px-5 py-6 flex flex-col justify-between">
+        <div className="space-y-8">
+          {/* Brand */}
+          <div className="flex items-center gap-2 px-2">
+            <div className="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center border border-primary/20 shadow-sm text-primary">
+              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>admin_panel_settings</span>
+            </div>
+            <div>
+              <span className="font-display font-bold text-xl text-primary leading-none block">Admin</span>
+              <p className="text-[10px] text-outline font-semibold">Bảng Quản Trị SignMentor</p>
+            </div>
+          </div>
+
+          {/* Vertical section nav */}
+          <nav className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 gap-1.5 scrollbar-none select-none">
+            {NAV_TABS.map(tab => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setAdminSection(tab.key)}
+                className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center gap-3 transition-colors shrink-0 text-sm font-bold ${
+                  adminSection === tab.key
+                    ? 'bg-primary-container/10 text-primary'
+                    : 'text-outline hover:bg-surface-container-low hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-lg">{tab.icon}</span>
+                <span className="md:inline">{tab.label}</span>
+              </button>
+            ))}
+          </nav>
         </div>
-      )}
+
+        {/* Footer: tai khoan + dang xuat */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-3 border border-outline-variant/30 rounded-2xl bg-surface-container-low">
+            <div className="flex items-center space-x-2 overflow-hidden">
+              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-outline-variant/60">
+                <img className="w-full h-full object-cover" src={currentUser.avatar} alt={currentUser.name} />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-xs font-bold text-on-surface truncate leading-none">{currentUser.name}</p>
+                <p className="text-[9px] text-outline truncate mt-0.5">Quản trị viên</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="p-1 hover:bg-red-50 text-outline hover:text-[#ba1a1a] rounded-lg transition-colors flex items-center justify-center shrink-0"
+              title="Đăng xuất"
+            >
+              <span className="material-symbols-outlined text-lg leading-none">power_settings_new</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Admin content area */}
+      <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+        <div className="space-y-8 animate-fade-in">
+
+          {/* Section header */}
+          <section>
+            <h2 className="font-display text-3xl font-extrabold text-[#111111]">{SECTION_META[adminSection].title}</h2>
+            <p className="text-body-md text-on-surface-variant">{SECTION_META[adminSection].desc}</p>
+          </section>
+
+          {/* Notifications */}
+          {notification && (
+            <div className="p-4 bg-green-100 text-green-800 rounded-xl font-semibold flex items-center gap-2 border border-green-200">
+              <span className="material-symbols-outlined text-green-700">check_circle</span>
+              {notification}
+            </div>
+          )}
 
       {/* System Telemetry stats row */}
+      {adminSection === 'overview' && (
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Active users */}
         <div className="p-5 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 inset-shadow flex items-center justify-between">
@@ -329,12 +413,11 @@ export default function AdminView({
           </div>
         </div>
       </section>
+      )}
 
-      {/* Main Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full">
-        
-        {/* Left Grid: AI Accuracy Trends (8/12 wide) */}
-        <div className="lg:col-span-8 p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-6">
+      {/* Overview: AI Accuracy Trends chart (full width) */}
+      {adminSection === 'overview' && (
+        <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-6">
           <header className="flex justify-between items-center pb-2 border-b border-outline-variant/15">
             <div>
               <h3 className="font-display text-lg font-bold text-on-surface">Xu Hướng Độ Chính Xác AI</h3>
@@ -403,9 +486,11 @@ export default function AdminView({
             </div>
           </div>
         </div>
+      )}
 
-        {/* Right Grid: Content Management (4/12 wide) */}
-        <div className="lg:col-span-4 p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
+      {/* Vocabulary: form them tu vung */}
+      {adminSection === 'vocabulary' && (
+        <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
           <header className="pb-2 border-b border-outline-variant/15">
             <h3 className="font-display text-lg font-bold text-on-surface">Quản Lý Nội Dung</h3>
             <p className="text-xs text-on-surface-variant font-medium">Thêm nhanh từ vựng và video HD.</p>
@@ -543,9 +628,10 @@ export default function AdminView({
             </button>
           </form>
         </div>
-      </div>
+      )}
 
-      {/* Bottom Section: User Management (matches 1st screenshot!) */}
+      {/* Users: Quan Ly Nguoi Dung */}
+      {adminSection === 'users' && (
       <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-6">
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-outline-variant/15">
           <div>
@@ -717,8 +803,10 @@ export default function AdminView({
           </table>
         </div>
       </section>
+      )}
 
-      {/* Category Management */}
+      {/* Categories: Quan Ly Danh Muc */}
+      {adminSection === 'categories' && (
       <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
         <header className="pb-2 border-b border-outline-variant/15">
           <h3 className="font-display text-lg font-bold text-on-surface">Quản Lý Danh Mục</h3>
@@ -813,8 +901,10 @@ export default function AdminView({
           ))}
         </div>
       </section>
+      )}
 
-      {/* Vocabulary List Editor (Manage catalog words) */}
+      {/* Vocabulary: danh sach tu vung da dang ky */}
+      {adminSection === 'vocabulary' && (
       <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-outline-variant/15">
           <div>
@@ -857,6 +947,9 @@ export default function AdminView({
           ))}
         </div>
       </section>
+      )}
+        </div>
+      </main>
     </div>
   );
 }

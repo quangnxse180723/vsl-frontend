@@ -17,11 +17,27 @@ export interface EvaluationResponse {
   rank: number;
 }
 
+export interface PracticeStatsResponse {
+  totalAttempts: number;
+  correctAttempts: number;
+  learnedCount: number;
+  totalVocabs: number;
+  accuracyRate: number; // 0.0 - 100.0
+  proficiency: number;  // 0 - 100 composite score
+  currentStreak: number; // consecutive practice days up to today
+  longestStreak: number; // best streak ever
+  weekActivity: boolean[]; // 7 entries, oldest -> newest; last = today
+}
+
 export const practiceApi = {
   getMyProgress: (): Promise<ApiResponse<UserProgressResponse[]>> => {
     return axiosClient.get('/practice/progress');
   },
-  
+
+  getStats: (): Promise<ApiResponse<PracticeStatsResponse>> => {
+    return axiosClient.get('/practice/stats');
+  },
+
   evaluate: (videoFile: File, expectedId: number): Promise<ApiResponse<EvaluationResponse>> => {
     const formData = new FormData();
     formData.append('video', videoFile);

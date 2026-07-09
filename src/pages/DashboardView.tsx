@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Lesson, RecentResult, Achievement } from '../types';
 import { attemptApi, AttemptResponse } from '../services/api/attemptApi';
-import { Zap, Clock, Star, Flame, Award, ArrowRight, X, Play, BookOpen } from 'lucide-react';
+import { PracticeStatsResponse } from '../services/api/practiceApi';
+import { Zap, Flame, Award, ArrowRight, X, Play, BookOpen, CheckCircle2, Trophy } from 'lucide-react';
 import otterMascot from '../assets/otter-mascot.jpg';
 
 interface DashboardViewProps {
@@ -10,6 +11,7 @@ interface DashboardViewProps {
   lessons: Lesson[];
   recentResults: RecentResult[];
   achievements: Achievement[];
+  practiceStats: PracticeStatsResponse | null;
   onNavigateToTab: (tab: 'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin') => void;
   onSelectLesson: (lessonId: string) => void;
   onStartDailyChallenge: () => void;
@@ -93,6 +95,7 @@ export default function DashboardView({
   currentUser,
   lessons,
   recentResults,
+  practiceStats,
   onNavigateToTab,
   onSelectLesson,
   onStartDailyChallenge
@@ -104,6 +107,28 @@ export default function DashboardView({
 
 
   const recommendations = lessons.filter(l => l.progress < 100).slice(0, 2);
+
+  // Real data from GET /api/practice/stats - replaces the old fixed "65%" mock.
+  const proficiency = practiceStats?.proficiency ?? 0;
+  const remainingVocabs = practiceStats
+    ? Math.max(practiceStats.totalVocabs - practiceStats.learnedCount, 0)
+    : 0;
+  const progressRingCircumference = 251.2;
+  const progressRingOffset = progressRingCircumference * (1 - proficiency / 100);
+
+  // Streak data (real, from BE). weekActivity[6] is today, [0] is 6 days ago.
+  const currentStreak = practiceStats?.currentStreak ?? 0;
+  const longestStreak = practiceStats?.longestStreak ?? 0;
+  const weekDays = React.useMemo(() => {
+    const labels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    const week = practiceStats?.weekActivity ?? [];
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      return { label: labels[d.getDay()], active: !!week[i], isToday: i === 6 };
+    });
+  }, [practiceStats]);
 
   const openHistoryModal = async () => {
     setShowHistoryModal(true);
@@ -261,13 +286,13 @@ export default function DashboardView({
             </div>
 
             <div className="relative z-10 flex-1 flex flex-col items-center justify-center">
-              {/* Giảm nhẹ animation: Bỏ drop shadow filter animate nặng, chỉ giữ di chuyển lên xuống */}
-              <motion.div 
-                animate={{ y: [0, -8, 0] }}
+              {/* Flame chỉ "sống" (cháy + nổi lên) khi chuỗi đang chạy; chuỗi đứt thì xám tĩnh. */}
+              <motion.div
+                animate={currentStreak > 0 ? { y: [0, -8, 0] } : { y: 0 }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="mb-2"
+                className="mb-1"
               >
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="url(#flame-grad)" stroke="url(#flame-stroke)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-flame">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill={currentStreak > 0 ? 'url(#flame-grad)' : '#e2e8f0'} stroke={currentStreak > 0 ? 'url(#flame-stroke)' : '#cbd5e1'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-flame">
                   <defs>
                     <linearGradient id="flame-grad" x1="0%" y1="100%" x2="0%" y2="0%">
                       <stop offset="0%" stopColor="#ea580c" />
@@ -283,21 +308,38 @@ export default function DashboardView({
                 </svg>
               </motion.div>
               <h3 className="text-5xl font-display font-extrabold text-slate-800 tracking-tighter">
-                5 <span className="text-xl text-slate-400 font-bold uppercase tracking-widest">Ngày</span>
+                {currentStreak} <span className="text-lg text-slate-400 font-bold uppercase tracking-widest">Ngày</span>
               </h3>
+              {currentStreak === 0 && (
+                <p className="text-[11px] text-slate-400 font-medium mt-1">Luyện tập hôm nay để bắt đầu chuỗi mới!</p>
+              )}
             </div>
 
-            <div className="w-full mt-6 relative z-10">
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-orange-400 to-yellow-400 rounded-full relative w-[71%]">
-                  {/* Tối ưu ánh kim: Chỉ quét rất cơ bản */}
-                  <motion.div
-                    animate={{ x: ["-100%", "200%"] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "linear", repeatDelay: 2 }}
-                    className="absolute top-0 bottom-0 w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent -skew-x-12"
-                  />
+            {/* Dải 7 ngày gần nhất - đốm cam = ngày có học, viền = hôm nay. Thay cho thanh ngang vô nghĩa cũ. */}
+            <div className="w-full mt-5 relative z-10 flex justify-between px-1">
+              {weekDays.map((day, i) => (
+                <div key={i} className="flex flex-col items-center gap-1.5">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                    day.active
+                      ? 'bg-gradient-to-br from-orange-400 to-yellow-400 shadow-[0_2px_6px_rgba(249,115,22,0.4)]'
+                      : 'bg-slate-100'
+                  } ${day.isToday ? 'ring-2 ring-offset-2 ring-orange-300' : ''}`}>
+                    {day.active && <Flame className="w-3 h-3 text-white" fill="currentColor" />}
+                  </div>
+                  <span className={`text-[9px] font-bold ${day.isToday ? 'text-orange-500' : 'text-slate-400'}`}>
+                    {day.label}
+                  </span>
                 </div>
-              </div>
+              ))}
+            </div>
+
+            {/* Kỷ lục chuỗi dài nhất */}
+            <div className="w-full mt-4 pt-3 relative z-10 flex items-center justify-center gap-1.5 border-t border-slate-100">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" fill="currentColor" />
+              <span className="text-[11px] font-bold text-slate-500">Kỷ lục: {longestStreak} ngày</span>
+              {currentStreak > 0 && currentStreak >= longestStreak && (
+                <span className="ml-1 text-[8px] font-extrabold uppercase tracking-wide text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full">Kỷ lục mới!</span>
+              )}
             </div>
           </motion.div>
 
@@ -327,19 +369,23 @@ export default function DashboardView({
                     stroke="url(#progress-grad)" 
                     strokeWidth="8" 
                     strokeLinecap="round" 
-                    initial={{ strokeDasharray: "251.2", strokeDashoffset: "251.2" }}
-                    animate={{ strokeDashoffset: "87.92" }}
+                    initial={{ strokeDasharray: progressRingCircumference, strokeDashoffset: progressRingCircumference }}
+                    animate={{ strokeDashoffset: progressRingOffset }}
                     transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center z-10">
-                  <span className="text-3xl font-display font-extrabold text-slate-800 tracking-tighter">65%</span>
+                  <span className="text-3xl font-display font-extrabold text-slate-800 tracking-tighter">{proficiency}%</span>
                 </div>
               </div>
-              
+
               <div className="flex-1 text-center sm:text-left">
                 <p className="text-slate-500 text-sm mb-5 leading-relaxed">
-                  Hoàn thành thêm 3 bài học nữa để mở khóa module <span className="font-bold text-slate-700">Hình Bàn Tay Nâng Cao</span>.
+                  {remainingVocabs > 0 ? (
+                    <>Học thêm <span className="font-bold text-slate-700">{remainingVocabs} từ vựng</span> nữa để nâng cao độ thành thạo của bạn.</>
+                  ) : (
+                    <>Bạn đã học thuộc <span className="font-bold text-slate-700">toàn bộ từ vựng</span> hiện có. Xuất sắc!</>
+                  )}
                 </p>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -385,12 +431,11 @@ export default function DashboardView({
                   </div>
                   <div className="p-4 flex-1 flex flex-col justify-between bg-white z-10 relative">
                     <h4 className="font-display font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">{lesson.title}</h4>
-                    <div className="flex items-center text-[11px] text-slate-400 space-x-3 mt-3">
-                      <span className="flex items-center gap-1 font-medium bg-slate-50 px-2 py-1 rounded-md">
-                        <Clock className="w-3 h-3 text-slate-400" /> {lesson.duration}
-                      </span>
-                      <span className="flex items-center gap-1 font-medium bg-slate-50 px-2 py-1 rounded-md">
-                        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> {lesson.rating}
+                    <div className="flex items-center text-[11px] mt-3">
+                      <span className={`flex items-center gap-1 font-bold px-2 py-1 rounded-md ${
+                        lesson.progress === 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-500'
+                      }`}>
+                        <CheckCircle2 className="w-3 h-3" /> {lesson.progress}% hoàn thành
                       </span>
                     </div>
                   </div>
@@ -509,7 +554,7 @@ export default function DashboardView({
                       <p className="text-[11px] text-slate-500 mt-1 font-medium">{att.categoryName} • {new Date(att.attemptedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                     </div>
                     <span className={`font-display text-xl font-extrabold ${att.isCorrect ? 'text-emerald-500' : 'text-indigo-500'}`}>
-                      {att.isCorrect ? 'Chính xác' : 'Thử lại'}
+                      {att.confidence != null ? `${Math.round(att.confidence)}%` : (att.isCorrect ? 'Chính xác' : '—')}
                     </span>
                   </div>
                 ))
