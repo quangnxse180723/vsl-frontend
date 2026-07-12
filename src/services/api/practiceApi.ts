@@ -23,7 +23,7 @@ export interface PracticeStatsResponse {
   learnedCount: number;
   totalVocabs: number;
   accuracyRate: number; // 0.0 - 100.0
-  proficiency: number;  // 0 - 100 composite score
+  proficiency: number;  // 0 - 100, = % tu vung LEARNED tren tong so tu vung (khong tinh accuracy)
   currentStreak: number; // consecutive practice days up to today
   longestStreak: number; // best streak ever
   weekActivity: boolean[]; // 7 entries, oldest -> newest; last = today

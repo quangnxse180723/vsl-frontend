@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Lock, User, ArrowLeft, Sparkles, UserPlus } from 'lucide-react';
+import { Mail, Lock, User, ArrowLeft, Sparkles, UserPlus, Loader2, Eye, EyeOff } from 'lucide-react';
+import { validateFullName, validateUsername, validateEmail, validatePassword, isFormValid } from '../utils/validation';
+import { getApiErrorMessage } from '../services/api/apiError';
 
 interface RegisterViewProps {
-  onRegister: (name: string, username: string, email: string, password: string) => void;
+  onRegister: (name: string, username: string, email: string, password: string) => Promise<void>;
   onSwitchToLogin: () => void;
 }
 
@@ -21,14 +23,36 @@ export default function RegisterView({ onRegister, onSwitchToLogin }: RegisterVi
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ name: string; username: string; email: string; password: string }>({ name: '', username: '', email: '', password: '' });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const clearError = (field: keyof typeof errors) => setErrors(p => ({ ...p, [field]: '' }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !username || !email || !password) {
-      setErrorMessage('Vui lòng điền đầy đủ các trường thông tin.');
-      return;
+    if (submitting) return;
+    const fieldErrors = {
+      name: validateFullName(name),
+      username: validateUsername(username),
+      email: validateEmail(email),
+      password: validatePassword(password),
+    };
+    setErrors(fieldErrors);
+    if (!isFormValid(fieldErrors)) return;
+
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      await onRegister(name, username, email, password);
+      // Thanh cong: App se chuyen sang man dang nhap.
+    } catch (err) {
+      // Hien loi that tu backend (vd email da ton tai, mat khau khong hop le)
+      // ngay tren man dang ky thay vi de trang "dung im" khong phan hoi.
+      setErrorMessage(getApiErrorMessage(err, 'Đăng ký thất bại. Vui lòng thử lại.'));
+    } finally {
+      setSubmitting(false);
     }
-    onRegister(name, username, email, password);
   };
 
   const containerVariants = {
@@ -144,11 +168,12 @@ export default function RegisterView({ onRegister, onSwitchToLogin }: RegisterVi
                   <div className="relative group/input">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
                     <input
-                      type="text" required value={name} onChange={(e) => { setName(e.target.value); setErrorMessage(''); }}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                      type="text" value={name} onChange={(e) => { setName(e.target.value); clearError('name'); setErrorMessage(''); }}
+                      className={`w-full pl-10 pr-4 py-3 bg-white/10 border rounded-xl outline-none focus:bg-white/20 transition-all text-white placeholder:text-white/40 text-sm shadow-inner ${errors.name ? 'border-red-500/60 focus:border-red-400' : 'border-white/20 focus:border-indigo-400'}`}
                       placeholder="Nguyễn Văn A"
                     />
                   </div>
+                  {errors.name && <p className="text-[11px] text-red-400 ml-1">{errors.name}</p>}
                 </motion.div>
 
                 <motion.div variants={itemVariants} className="space-y-1.5">
@@ -156,11 +181,12 @@ export default function RegisterView({ onRegister, onSwitchToLogin }: RegisterVi
                   <div className="relative group/input">
                     <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
                     <input
-                      type="text" required value={username} onChange={(e) => { setUsername(e.target.value); setErrorMessage(''); }}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                      type="text" value={username} onChange={(e) => { setUsername(e.target.value); clearError('username'); setErrorMessage(''); }}
+                      className={`w-full pl-10 pr-4 py-3 bg-white/10 border rounded-xl outline-none focus:bg-white/20 transition-all text-white placeholder:text-white/40 text-sm shadow-inner ${errors.username ? 'border-red-500/60 focus:border-red-400' : 'border-white/20 focus:border-indigo-400'}`}
                       placeholder="nguyenvana"
                     />
                   </div>
+                  {errors.username && <p className="text-[11px] text-red-400 ml-1">{errors.username}</p>}
                 </motion.div>
               </div>
 
@@ -169,11 +195,12 @@ export default function RegisterView({ onRegister, onSwitchToLogin }: RegisterVi
                 <div className="relative group/input">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
                   <input
-                    type="email" required value={email} onChange={(e) => { setEmail(e.target.value); setErrorMessage(''); }}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                    type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError('email'); setErrorMessage(''); }}
+                    className={`w-full pl-10 pr-4 py-3 bg-white/10 border rounded-xl outline-none focus:bg-white/20 transition-all text-white placeholder:text-white/40 text-sm shadow-inner ${errors.email ? 'border-red-500/60 focus:border-red-400' : 'border-white/20 focus:border-indigo-400'}`}
                     placeholder="nguoidung@email.com"
                   />
                 </div>
+                {errors.email && <p className="text-[11px] text-red-400 ml-1">{errors.email}</p>}
               </motion.div>
 
               <motion.div variants={itemVariants} className="space-y-1.5">
@@ -181,22 +208,36 @@ export default function RegisterView({ onRegister, onSwitchToLogin }: RegisterVi
                 <div className="relative group/input">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
                   <input
-                    type="password" required value={password} onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
-                    placeholder="••••••••"
+                    type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => { setPassword(e.target.value); clearError('password'); setErrorMessage(''); }}
+                    className={`w-full pl-10 pr-11 py-3 bg-white/10 border rounded-xl outline-none focus:bg-white/20 transition-all text-white placeholder:text-white/40 text-sm shadow-inner ${errors.password ? 'border-red-500/60 focus:border-red-400' : 'border-white/20 focus:border-indigo-400'}`}
+                    placeholder="8-12 ký tự, có hoa, thường, số"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(s => !s)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
+                {errors.password && <p className="text-[11px] text-red-400 ml-1">{errors.password}</p>}
               </motion.div>
 
               <motion.div variants={itemVariants} className="pt-2">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={submitting ? undefined : { scale: 1.02 }}
+                  whileTap={submitting ? undefined : { scale: 0.98 }}
                   type="submit"
-                  className="w-full relative group/btn overflow-hidden bg-indigo-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-indigo-500 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] text-sm"
+                  disabled={submitting}
+                  className="w-full relative group/btn overflow-hidden bg-indigo-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-indigo-500 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] text-sm disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <span className="relative z-10">Hoàn Tất Đăng Ký</span>
-                  <UserPlus className="w-4 h-4 relative z-10" />
+                  <span className="relative z-10">{submitting ? 'Đang đăng ký...' : 'Hoàn Tất Đăng Ký'}</span>
+                  {submitting
+                    ? <Loader2 className="w-4 h-4 relative z-10 animate-spin" />
+                    : <UserPlus className="w-4 h-4 relative z-10" />}
                 </motion.button>
               </motion.div>
             </form>

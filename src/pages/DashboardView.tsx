@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { User, Lesson, RecentResult, Achievement } from '../types';
 import { attemptApi, AttemptResponse } from '../services/api/attemptApi';
 import { PracticeStatsResponse } from '../services/api/practiceApi';
-import { Zap, Flame, Award, ArrowRight, X, Play, BookOpen, CheckCircle2, Trophy } from 'lucide-react';
+import { userBlogApi } from '../services/api/userBlogApi';
+import { Zap, Flame, Award, ArrowRight, X, Play, BookOpen, CheckCircle2, Trophy, PenLine } from 'lucide-react';
 import otterMascot from '../assets/otter-mascot.jpg';
 
 interface DashboardViewProps {
@@ -12,7 +13,7 @@ interface DashboardViewProps {
   recentResults: RecentResult[];
   achievements: Achievement[];
   practiceStats: PracticeStatsResponse | null;
-  onNavigateToTab: (tab: 'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin') => void;
+  onNavigateToTab: (tab: 'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin' | 'blog' | 'my-blogs') => void;
   onSelectLesson: (lessonId: string) => void;
   onStartDailyChallenge: () => void;
 }
@@ -103,6 +104,15 @@ export default function DashboardView({
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [fullHistory, setFullHistory] = useState<AttemptResponse[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Tong so bai viet cua chinh user (cho the "Bai viet cua toi" o duoi).
+  // null = chua tai xong -> tranh nhap nhay noi dung truoc khi biet so that.
+  const [myBlogCount, setMyBlogCount] = useState<number | null>(null);
+  useEffect(() => {
+    userBlogApi.getBlogs(0, 1)
+      .then(res => setMyBlogCount(res.totalElements))
+      .catch(() => setMyBlogCount(0));
+  }, []);
 
 
 
@@ -307,7 +317,7 @@ export default function DashboardView({
                   <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
                 </svg>
               </motion.div>
-              <h3 className="text-5xl font-display font-extrabold text-slate-800 tracking-tighter">
+              <h3 className="text-5xl font-display font-extrabold text-gradient-brand tracking-tighter">
                 {currentStreak} <span className="text-lg text-slate-400 font-bold uppercase tracking-widest">Ngày</span>
               </h3>
               {currentStreak === 0 && (
@@ -350,7 +360,7 @@ export default function DashboardView({
               <div className="w-9 h-9 rounded-full bg-cyan-50 flex items-center justify-center border border-cyan-100">
                 <BookOpen className="w-4 h-4 text-cyan-500" />
               </div>
-              <h3 className="font-display text-xl text-slate-800 font-bold">Chương Trình Học</h3>
+              <h3 className="font-display text-xl text-gradient-brand font-bold">Chương Trình Học</h3>
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-6 z-10 flex-1">
@@ -363,19 +373,23 @@ export default function DashboardView({
                       <stop offset="100%" stopColor="#22d3ee" />
                     </linearGradient>
                   </defs>
-                  <circle cx="50" cy="50" fill="transparent" r="40" stroke="#f1f5f9" strokeWidth="8" />
-                  <motion.circle 
-                    cx="50" cy="50" fill="transparent" r="40" 
-                    stroke="url(#progress-grad)" 
-                    strokeWidth="8" 
-                    strokeLinecap="round" 
+                  {/* Track: tang do tuong phan (tu #f1f5f9 gan nhu trung mau the trang
+                      sang mot vien xam ro rang hon) de thay duoc ca duong tron va phan
+                      con lai, khong chi thay mai cung gradient. */}
+                  <circle cx="50" cy="50" fill="transparent" r="40" stroke="#dfe4ee" strokeWidth="10" />
+                  <motion.circle
+                    cx="50" cy="50" fill="transparent" r="40"
+                    stroke="url(#progress-grad)"
+                    strokeWidth="10"
+                    strokeLinecap="round"
                     initial={{ strokeDasharray: progressRingCircumference, strokeDashoffset: progressRingCircumference }}
                     animate={{ strokeDashoffset: progressRingOffset }}
                     transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(70,72,212,0.35))' }}
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center z-10">
-                  <span className="text-3xl font-display font-extrabold text-slate-800 tracking-tighter">{proficiency}%</span>
+                  <span className="text-3xl font-display font-extrabold text-gradient-brand tracking-tighter">{proficiency}%</span>
                 </div>
               </div>
 
@@ -402,7 +416,7 @@ export default function DashboardView({
           {/* RECOMMENDED BENTO - Col span 7 */}
           <motion.div variants={itemVariants} className={`md:col-span-7 ${ceramicCard} p-8 flex flex-col justify-between min-h-[240px]`}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-display text-xl font-bold text-slate-800">Đề Xuất Cho Bạn</h3>
+              <h3 className="font-display text-xl font-bold text-gradient-brand">Đề Xuất Cho Bạn</h3>
               <button onClick={() => onNavigateToTab('lessons')} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors">
                 <ArrowRight className="w-4 h-4" />
               </button>
@@ -448,21 +462,39 @@ export default function DashboardView({
           <motion.div variants={itemVariants} className={`md:col-span-7 ${ceramicCard} p-0 flex flex-col sm:flex-row items-center overflow-hidden min-h-[200px]`}>
             <div className="p-8 sm:w-2/3 flex flex-col justify-center h-full relative z-10">
               <div className="inline-flex items-center gap-1.5 mb-3">
-                <Award className="w-4 h-4 text-indigo-500" />
-                <span className="text-indigo-600 font-bold text-[10px] tracking-[0.2em] uppercase">Thành Thạo</span>
+                <PenLine className="w-4 h-4 text-indigo-500" />
+                <span className="text-indigo-600 font-bold text-[10px] tracking-[0.2em] uppercase">Bài Viết Của Tôi</span>
               </div>
-              <h4 className="font-display text-2xl font-extrabold text-slate-800 mb-2">Sẵn sàng lên trình?</h4>
-              <p className="text-slate-500 text-sm mb-6 max-w-sm">
-                Mở khóa module <strong className="text-slate-700">Ký Hiệu Khẩn Cấp</strong> để nhận phản hồi AI theo thời gian thực và huy hiệu cộng đồng.
-              </p>
+              {myBlogCount == null ? (
+                <>
+                  <h4 className="font-display text-2xl font-extrabold text-gradient-brand mb-2">Bài viết của bạn</h4>
+                  <p className="text-slate-500 text-sm mb-6 max-w-sm">Đang tải thông tin bài viết...</p>
+                </>
+              ) : myBlogCount > 0 ? (
+                <>
+                  <h4 className="font-display text-2xl font-extrabold text-gradient-brand mb-2">
+                    <span className="text-indigo-600">{myBlogCount}</span> bài viết đã đăng
+                  </h4>
+                  <p className="text-slate-500 text-sm mb-6 max-w-sm">
+                    Tiếp tục chia sẻ hành trình học ngôn ngữ ký hiệu của bạn với cộng đồng SignMentor.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h4 className="font-display text-2xl font-extrabold text-gradient-brand mb-2">Bạn chưa có bài viết nào</h4>
+                  <p className="text-slate-500 text-sm mb-6 max-w-sm">
+                    Chia sẻ trải nghiệm học ký hiệu đầu tiên của bạn với cộng đồng SignMentor.
+                  </p>
+                </>
+              )}
               <div>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => onNavigateToTab('lessons')}
+                  onClick={() => onNavigateToTab('my-blogs')}
                   className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md transition-all hover:bg-indigo-500"
                 >
-                  Tiếp Tục Module
+                  {myBlogCount != null && myBlogCount > 0 ? 'Đăng bài' : 'Đăng ngay'}
                 </motion.button>
               </div>
             </div>
@@ -479,7 +511,7 @@ export default function DashboardView({
           {/* RECENT RESULTS BENTO - Col span 5 */}
           <motion.div variants={itemVariants} className={`md:col-span-5 ${ceramicCard} p-8 flex flex-col min-h-[200px]`}>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="font-display text-xl font-bold text-slate-800">Độ Chính Xác Gần Đây</h3>
+              <h3 className="font-display text-xl font-bold text-gradient-brand">Độ Chính Xác Gần Đây</h3>
               <button onClick={openHistoryModal} className="text-indigo-500 font-bold text-xs uppercase tracking-wider hover:text-indigo-600 transition-colors">
                 Xem Tất Cả
               </button>
@@ -527,7 +559,7 @@ export default function DashboardView({
                   <Award className="w-6 h-6 text-indigo-500" />
                 </div>
                 <div>
-                  <h3 className="font-display font-extrabold text-2xl text-slate-800">Lịch Sử</h3>
+                  <h3 className="font-display font-extrabold text-2xl text-gradient-brand">Lịch Sử</h3>
                   <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Đánh Giá Từ AI</p>
                 </div>
               </div>

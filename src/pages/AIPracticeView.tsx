@@ -27,11 +27,13 @@ export default function AIPracticeView({
   const [calibrationStep, setCalibrationStep] = useState<string>('Sẵn sàng hiệu chỉnh');
   const [progressWidth, setProgressWidth] = useState(0);
 
-  // Live Score Metrics - null until a real AI evaluation has run
+  // Live Score Metrics - null until a real AI evaluation has run.
+  // Chi hien thi so lieu THAT do model tra ve: do chinh xac (confidence),
+  // thu hang nhan dien (rank) va ket qua (status). Truoc day co 3 o "hinh tay/
+  // huong tay/chuyen dong" nhung model khong cham theo tung chieu -> da bo.
   const [overallScore, setOverallScore] = useState<number | null>(null);
-  const [handShapeGrade, setHandShapeGrade] = useState<'Xuất sắc' | 'Tốt' | 'Tạm được' | 'Cần chỉnh tư thế' | null>(null);
-  const [orientationGrade, setOrientationGrade] = useState<'Xuất sắc' | 'Tốt' | 'Tạm được' | 'Cần chỉnh tư thế' | null>(null);
-  const [motionGrade, setMotionGrade] = useState<'Xuất sắc' | 'Tốt' | 'Tạm được' | 'Cần chỉnh tư thế' | null>(null);
+  const [evalRank, setEvalRank] = useState<number | null>(null);
+  const [evalStatus, setEvalStatus] = useState<'CORRECT' | 'ALMOST_CORRECT' | 'INCORRECT' | null>(null);
 
   // Result overlay stays on screen after evaluation completes (success or failure)
   // until the user starts a new scan - previously it vanished the instant progressWidth hit 100.
@@ -408,6 +410,17 @@ export default function AIPracticeView({
   }, [isRecording, useRealCamera, overallScore]);
 
   // Records a real clip from the webcam and sends it to the backend AI model for scoring.
+  // Xoa ket qua & dua UI ve trang thai san sang de luyen lai (khong can F5).
+  const resetForRetry = () => {
+    setResultVisible(false);
+    setLastAttemptFailed(false);
+    setOverallScore(null);
+    setEvalRank(null);
+    setEvalStatus(null);
+    setProgressWidth(0);
+    setCalibrationStep('Sẵn sàng hiệu chỉnh');
+  };
+
   const handleScanAndEvaluate = () => {
     if (isDetecting || isRecording) return;
 
@@ -452,20 +465,8 @@ export default function AIPracticeView({
           const evaluation = res.data;
 
           setOverallScore(Math.round(evaluation.confidence));
-
-          if (evaluation.status === 'CORRECT') {
-            setHandShapeGrade('Xuất sắc');
-            setOrientationGrade('Xuất sắc');
-            setMotionGrade('Xuất sắc');
-          } else if (evaluation.status === 'ALMOST_CORRECT') {
-            setHandShapeGrade('Tốt');
-            setOrientationGrade('Tốt');
-            setMotionGrade('Tốt');
-          } else {
-            setHandShapeGrade('Tạm được');
-            setOrientationGrade('Cần chỉnh tư thế');
-            setMotionGrade('Tạm được');
-          }
+          setEvalRank(evaluation.rank);
+          setEvalStatus(evaluation.status);
 
           setCalibrationStep(evaluation.message || 'Đánh giá hoàn tất!');
           setProgressWidth(100);
@@ -514,7 +515,7 @@ export default function AIPracticeView({
     return (
       <div className="space-y-6 animate-fade-in text-on-surface">
         <header>
-          <h2 className="font-display text-3xl font-extrabold text-on-surface">Phòng Luyện Tập AI</h2>
+          <h2 className="font-display text-3xl font-extrabold text-gradient-brand">Phòng Luyện Tập AI</h2>
           <p className="text-body-md text-on-surface-variant">Kiểm tra tư thế tay của bạn với phản hồi theo thời gian thực bằng camera.</p>
         </header>
         <div className="py-16 text-center text-outline bg-surface-container-lowest rounded-2xl border border-dashed border-outline-variant/60">
@@ -529,7 +530,7 @@ export default function AIPracticeView({
   return (
     <div className="space-y-6 animate-fade-in text-on-surface">
       <header>
-        <h2 className="font-display text-3xl font-extrabold text-on-surface">Phòng Luyện Tập AI</h2>
+        <h2 className="font-display text-3xl font-extrabold text-gradient-brand">Phòng Luyện Tập AI</h2>
         <p className="text-body-md text-on-surface-variant">Quay một video luyện tập bằng camera và để mô hình AI chấm điểm.</p>
       </header>
 
@@ -662,7 +663,14 @@ export default function AIPracticeView({
                   </div>
                 )}
                 <h4 className="font-headline-md text-lg text-white font-bold">{calibrationStep}</h4>
-                <p className="text-white/60 text-xs mt-2 max-w-xs">Nhấn "Hiệu Chỉnh & Quét" để thử lại.</p>
+                <button
+                  onClick={resetForRetry}
+                  className="mt-5 px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-sm shadow-lg hover:bg-primary/90 active-scale transition-all flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Thử lại
+                </button>
+                <p className="text-white/50 text-[11px] mt-3 max-w-xs">Bấm "Thử lại" để luyện lại ký hiệu này (không cần tải lại trang).</p>
               </div>
             )}
           </div>
@@ -711,38 +719,60 @@ export default function AIPracticeView({
             </p>
           )}
 
-          {/* Subgrade Diagnostics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={`p-4 rounded-xl border flex justify-between items-center bg-surface-container-lowest shadow-sm ${handShapeGrade === 'Xuất sắc' || handShapeGrade === 'Tốt' ? 'border-green-100' : 'border-amber-100'}`}>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-outline">Hình bàn tay</p>
-                <p className="text-sm font-bold text-on-surface">Dáng Tư Thế</p>
-              </div>
-              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                handShapeGrade === 'Xuất sắc' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-              }`}>{handShapeGrade ?? 'Chờ đánh giá'}</span>
-            </div>
+          {/* Diagnostics Grid - so lieu THAT do model tra ve */}
+          {(() => {
+            const waiting = 'bg-slate-100 text-slate-500';
+            const scoreCls = overallScore == null ? waiting
+              : overallScore >= 75 ? 'bg-green-100 text-green-700'
+              : overallScore >= 50 ? 'bg-amber-100 text-amber-700'
+              : 'bg-red-100 text-red-700';
+            const rankCls = evalRank == null ? waiting
+              : evalRank === 1 ? 'bg-green-100 text-green-700'
+              : evalRank <= 3 ? 'bg-amber-100 text-amber-700'
+              : 'bg-red-100 text-red-700';
+            const statusLabel = evalStatus === 'CORRECT' ? 'Đúng'
+              : evalStatus === 'ALMOST_CORRECT' ? 'Gần đúng'
+              : evalStatus === 'INCORRECT' ? 'Chưa đúng'
+              : 'Chờ đánh giá';
+            const statusCls = evalStatus === 'CORRECT' ? 'bg-green-100 text-green-700'
+              : evalStatus === 'ALMOST_CORRECT' ? 'bg-amber-100 text-amber-700'
+              : evalStatus === 'INCORRECT' ? 'bg-red-100 text-red-700'
+              : waiting;
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Do chinh xac (confidence) */}
+                <div className="p-4 rounded-xl border border-outline-variant/30 flex justify-between items-center bg-surface-container-lowest shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-outline">Độ chính xác</p>
+                    <p className="text-sm font-bold text-on-surface">Mức khớp ký hiệu</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${scoreCls}`}>
+                    {overallScore != null ? `${overallScore}%` : 'Chờ đánh giá'}
+                  </span>
+                </div>
 
-            <div className={`p-4 rounded-xl border flex justify-between items-center bg-surface-container-lowest shadow-sm ${orientationGrade === 'Xuất sắc' || orientationGrade === 'Tốt' ? 'border-green-100' : 'border-amber-100'}`}>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-outline">Hướng tay</p>
-                <p className="text-sm font-bold text-on-surface">Hướng Lòng Bàn Tay</p>
-              </div>
-              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                orientationGrade === 'Xuất sắc' || orientationGrade === 'Tốt' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-              }`}>{orientationGrade ?? 'Chờ đánh giá'}</span>
-            </div>
+                {/* Thu hang nhan dien (rank) */}
+                <div className="p-4 rounded-xl border border-outline-variant/30 flex justify-between items-center bg-surface-container-lowest shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-outline">Thứ hạng nhận diện</p>
+                    <p className="text-sm font-bold text-on-surface">Vị trí trong dự đoán</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${rankCls}`}>
+                    {evalRank != null ? `#${evalRank}` : 'Chờ đánh giá'}
+                  </span>
+                </div>
 
-            <div className={`p-4 rounded-xl border flex justify-between items-center bg-surface-container-lowest shadow-sm ${motionGrade === 'Xuất sắc' || motionGrade === 'Tốt' ? 'border-green-100' : 'border-amber-100'}`}>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-outline">Chuyển động</p>
-                <p className="text-sm font-bold text-on-surface">Tốc Độ & Xoay</p>
+                {/* Ket qua (status) */}
+                <div className="p-4 rounded-xl border border-outline-variant/30 flex justify-between items-center bg-surface-container-lowest shadow-sm">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-outline">Kết quả</p>
+                    <p className="text-sm font-bold text-on-surface">Đối chiếu ký hiệu</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${statusCls}`}>{statusLabel}</span>
+                </div>
               </div>
-              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-                motionGrade === 'Xuất sắc' || motionGrade === 'Tốt' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-              }`}>{motionGrade ?? 'Chờ đánh giá'}</span>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Interactive Guidelines Feedback prompt */}
           <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30 flex items-start gap-3">
@@ -766,7 +796,7 @@ export default function AIPracticeView({
           {/* Practice selection header */}
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <header className="space-y-1">
-              <h3 className="font-display text-lg font-bold text-on-surface">Video Mẫu Tham Khảo</h3>
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Video Mẫu Tham Khảo</h3>
               <p className="text-xs text-on-surface-variant">Chọn từ vựng ký hiệu bạn muốn hiệu chỉnh.</p>
             </header>
 
@@ -781,9 +811,8 @@ export default function AIPracticeView({
                   if (s) {
                     setSelectedSign(s);
                     setOverallScore(null);
-                    setHandShapeGrade(null);
-                    setOrientationGrade(null);
-                    setMotionGrade(null);
+                    setEvalRank(null);
+                    setEvalStatus(null);
                     setResultVisible(false);
                     setShowReferenceVideo(false);
                   }

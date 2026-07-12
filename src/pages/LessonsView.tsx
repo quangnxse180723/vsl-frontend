@@ -42,7 +42,7 @@ export default function LessonsView({ lessons, onSelectLesson, onNavigateToTab }
       {/* Search & Intro */}
       <section className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="font-display text-3xl font-extrabold text-on-surface">Danh Mục Bài Học</h2>
+          <h2 className="font-display text-3xl font-extrabold text-gradient-brand">Danh Mục Bài Học</h2>
           <p className="text-body-md text-on-surface-variant">Bắt đầu từ những kiến thức cơ bản hoặc khám phá các học phần hội thoại nâng cao.</p>
         </div>
 

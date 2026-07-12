@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { User, Achievement } from '../types';
 import { userApi } from '../services/api/userApi';
-import { Award, Shield, Bell, Eye, Volume2, LogOut, Save, Camera, Check, ChevronDown } from 'lucide-react';
+import { Shield, LogOut, Save, Camera, ChevronDown } from 'lucide-react';
+import { validateFullName, validateUsername, validateEmail, validatePassword, validateRequired, isFormValid } from '../utils/validation';
 
 interface ProfileViewProps {
   currentUser: User;
@@ -14,8 +15,6 @@ interface ProfileViewProps {
 export default function ProfileView({ currentUser, achievements, onLogout, onUpdateUser }: ProfileViewProps) {
   // Settings Toggles (local-only preferences, no backend endpoint exists for these yet)
   const [emailNotify, setEmailNotify] = useState(true);
-  const [hudMesh, setHudMesh] = useState(true);
-  const [voiceCoach, setVoiceCoach] = useState(false);
 
   // Profile identity fields, backed by GET/PUT /api/users/me
   const [username, setUsername] = useState('');
@@ -32,6 +31,10 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
 
   const [saveSuccess, setSaveSuccess] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Loi validate theo tung truong
+  const [profileErrors, setProfileErrors] = useState<{ fullName: string; username: string; email: string }>({ fullName: '', username: '', email: '' });
+  const [passwordErrors, setPasswordErrors] = useState<{ oldPassword: string; newPassword: string }>({ oldPassword: '', newPassword: '' });
 
   useEffect(() => {
     userApi.getProfile().then(profile => {
@@ -56,6 +59,13 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fieldErrors = {
+      fullName: validateFullName(fullName),
+      username: validateUsername(username),
+      email: validateEmail(email),
+    };
+    setProfileErrors(fieldErrors);
+    if (!isFormValid(fieldErrors)) return;
     setSavingProfile(true);
     try {
       const updated = await userApi.updateProfile({ username, email, fullName });
@@ -70,10 +80,12 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!oldPassword || !newPassword) {
-      flashError('Vui lòng điền đầy đủ cả hai trường mật khẩu.');
-      return;
-    }
+    const fieldErrors = {
+      oldPassword: validateRequired(oldPassword, 'Mật khẩu hiện tại'),
+      newPassword: validatePassword(newPassword),
+    };
+    setPasswordErrors(fieldErrors);
+    if (!isFormValid(fieldErrors)) return;
     setChangingPassword(true);
     try {
       await userApi.updatePassword({ oldPassword, newPassword });
@@ -116,7 +128,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
   return (
     <div className="space-y-8 animate-fade-in text-on-surface">
       <header>
-        <h2 className="font-display text-3xl font-extrabold text-[#111111]">Hồ Sơ Học Viên</h2>
+        <h2 className="font-display text-3xl font-extrabold text-gradient-brand">Hồ Sơ Học Viên</h2>
         <p className="text-body-md text-on-surface-variant">Cập nhật thông tin, quản lý tùy chọn và xem thành tích đã đạt được.</p>
       </header>
 
@@ -149,7 +161,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
             <input id="avatar-upload-input" type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
           </div>
           <div className="space-y-1">
-            <h3 className="font-display text-2xl font-bold text-[#111111]">{currentUser.name}</h3>
+            <h3 className="font-display text-2xl font-bold text-gradient-brand">{currentUser.name}</h3>
             <p className="text-sm font-semibold text-primary">Học Viên Cấp 2 • Người Học VSL</p>
             <p className="text-xs text-outline">{currentUser.email}</p>
           </div>
@@ -175,42 +187,45 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <span className="material-symbols-outlined text-primary">settings</span>
-              <h3 className="font-display text-lg font-bold">Tùy Chọn</h3>
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Tùy Chọn</h3>
             </div>
 
             <form onSubmit={handleSaveSettings} className="space-y-5">
               {/* Profile details */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Tên Hiển Thị</label>
+                <label className="text-xs font-semibold text-outline">Họ và Tên</label>
                 <input
                   type="text"
-                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                  className={`w-full px-3 py-2 bg-surface-container-low border rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary ${profileErrors.fullName ? 'border-red-400' : 'border-outline-variant/60'}`}
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => { setFullName(e.target.value); setProfileErrors(p => ({ ...p, fullName: '' })); }}
                   disabled={!profileLoaded}
                 />
+                {profileErrors.fullName && <p className="text-[11px] text-red-600">{profileErrors.fullName}</p>}
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-outline">Tên Đăng Nhập</label>
+                <label className="text-xs font-semibold text-outline">Tên Hiển Thị</label>
                 <input
                   type="text"
-                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                  className={`w-full px-3 py-2 bg-surface-container-low border rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary ${profileErrors.username ? 'border-red-400' : 'border-outline-variant/60'}`}
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => { setUsername(e.target.value); setProfileErrors(p => ({ ...p, username: '' })); }}
                   disabled={!profileLoaded}
                 />
+                {profileErrors.username && <p className="text-[11px] text-red-600">{profileErrors.username}</p>}
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-outline">Email</label>
                 <input
                   type="email"
-                  className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                  className={`w-full px-3 py-2 bg-surface-container-low border rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary ${profileErrors.email ? 'border-red-400' : 'border-outline-variant/60'}`}
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setProfileErrors(p => ({ ...p, email: '' })); }}
                   disabled={!profileLoaded}
                 />
+                {profileErrors.email && <p className="text-[11px] text-red-600">{profileErrors.email}</p>}
               </div>
 
               {/* Toggles */}
@@ -233,41 +248,6 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   </button>
                 </div>
 
-                {/* HUD Camera Guides */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined text-outline mt-0.5">grid_on</span>
-                    <div>
-                      <p className="text-xs font-bold text-[#111111]">Lưới Theo Dõi HUD</p>
-                      <p className="text-[10px] text-outline">Hiển thị các điểm mốc AI trên khung hình camera trực tiếp.</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setHudMesh(!hudMesh)}
-                    className={`w-10 h-6 rounded-full transition-colors relative flex items-center shrink-0 ${hudMesh ? 'bg-primary' : 'bg-surface-container-high'}`}
-                  >
-                    <span className={`w-4 safety-box h-4 rounded-full bg-white transition-all absolute ${hudMesh ? 'left-5' : 'left-1'}`}></span>
-                  </button>
-                </div>
-
-                {/* Real-time Voice Coach */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined text-outline mt-0.5">volume_up</span>
-                    <div>
-                      <p className="text-xs font-bold text-[#111111]">Trợ lý giọng nói</p>
-                      <p className="text-[10px] text-outline">Nghe thông báo bằng giọng nói khi bạn thành thạo một ký hiệu.</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setVoiceCoach(!voiceCoach)}
-                    className={`w-10 h-6 rounded-full transition-colors relative flex items-center shrink-0 ${voiceCoach ? 'bg-primary' : 'bg-surface-container-high'}`}
-                  >
-                    <span className={`w-4 safety-box h-4 rounded-full bg-white transition-all absolute ${voiceCoach ? 'left-5' : 'left-1'}`}></span>
-                  </button>
-                </div>
               </div>
 
               {/* Save Settings Button */}
@@ -286,7 +266,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <Shield className="w-5 h-5 text-primary" />
-              <h3 className="font-display text-lg font-bold">Bảo Mật</h3>
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Bảo Mật</h3>
             </div>
 
             <button
@@ -304,19 +284,23 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   <label className="text-xs font-semibold text-outline">Mật Khẩu Hiện Tại</label>
                   <input
                     type="password"
-                    className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                    className={`w-full px-3 py-2 bg-surface-container-low border rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary ${passwordErrors.oldPassword ? 'border-red-400' : 'border-outline-variant/60'}`}
                     value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
+                    onChange={(e) => { setOldPassword(e.target.value); setPasswordErrors(p => ({ ...p, oldPassword: '' })); }}
                   />
+                  {passwordErrors.oldPassword && <p className="text-[11px] text-red-600">{passwordErrors.oldPassword}</p>}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-outline">Mật Khẩu Mới</label>
                   <input
                     type="password"
-                    className="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/60 rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary"
+                    className={`w-full px-3 py-2 bg-surface-container-low border rounded-lg text-sm text-on-surface font-medium outline-none focus:border-primary ${passwordErrors.newPassword ? 'border-red-400' : 'border-outline-variant/60'}`}
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    onChange={(e) => { setNewPassword(e.target.value); setPasswordErrors(p => ({ ...p, newPassword: '' })); }}
                   />
+                  {passwordErrors.newPassword
+                    ? <p className="text-[11px] text-red-600">{passwordErrors.newPassword}</p>
+                    : <p className="text-[10px] text-outline">Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường và số.</p>}
                 </div>
                 <button
                   type="submit"
@@ -345,7 +329,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <span className="material-symbols-outlined text-primary">emoji_events</span>
-              <h3 className="font-display text-lg font-bold">Tủ Thành Tích</h3>
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Tủ Thành Tích</h3>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

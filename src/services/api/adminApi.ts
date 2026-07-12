@@ -10,6 +10,7 @@ export interface AdminUserResponse {
   status: string;
   avatarUrl: string | null;
   createdAt: string;
+  lastLogin: string | null;
 }
 
 export interface PageResponse<T> {
@@ -32,11 +33,56 @@ export interface AdminBlogResponse {
   title: string;
   content: string;
   thumbnailUrl: string | null;
-  status: 'DRAFT' | 'PUBLISHED';
+  status: 'DRAFT' | 'PUBLISHED' | 'REMOVED';
   authorId: number | null;
   authorName: string | null;
   createdAt: string;
   updatedAt: string;
+  // Tuong tac (BE luon tra ve)
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
+  // Chi co khi status = REMOVED (bai bi admin go) - chi tac gia thay
+  deletionReason: string | null;
+}
+
+export interface BlogCommentResponse {
+  id: number;
+  blogId: number;
+  userId: number | null;
+  userName: string | null;
+  userAvatar: string | null;
+  content: string;
+  createdAt: string;
+}
+
+export interface LikeToggleResponse {
+  liked: boolean;
+  likeCount: number;
+}
+
+export interface LikeUserResponse {
+  userId: number | null;
+  userName: string | null;
+  userAvatar: string | null;
+  createdAt: string;
+}
+
+export interface BlogReportResponse {
+  id: number;
+  reason: string;
+  status: 'PENDING' | 'RESOLVED';
+  createdAt: string;
+  resolvedAt: string | null;
+  reporterId: number | null;
+  reporterName: string | null;
+  blogId: number | null;
+  blogTitle: string | null;
+  blogContent: string | null;
+  blogThumbnailUrl: string | null;
+  blogStatus: 'DRAFT' | 'PUBLISHED' | 'REMOVED' | null;
+  blogAuthorId: number | null;
+  blogAuthorName: string | null;
 }
 
 export interface CreateBlogPayload {
@@ -51,46 +97,26 @@ export interface UpdateBlogPayload {
   status?: string;
 }
 
-export interface CreateUserPayload {
-  username: string;
-  email: string;
-  password: string;
-  fullName: string;
-  role: 'USER' | 'ADMIN';
-  status: 'ACTIVE' | 'INACTIVE';
-}
-
-export interface UpdateUserPayload {
-  fullName?: string;
-  role?: 'USER' | 'ADMIN';
-  status?: 'ACTIVE' | 'INACTIVE';
-  password?: string;
-}
-
 export const adminApi = {
   getUsers: (page = 0, size = 100): Promise<PageResponse<AdminUserResponse>> => {
     // AdminUserController returns ResponseEntity<Page<UserResponse>> directly (no ApiResponse wrapper)
     return axiosClient.get(`/admin/users?page=${page}&size=${size}`);
   },
 
-  createUser: (payload: CreateUserPayload): Promise<AdminUserResponse> => {
-    return axiosClient.post('/admin/users', payload);
-  },
-
-  updateUser: (id: number, payload: UpdateUserPayload): Promise<AdminUserResponse> => {
-    return axiosClient.put(`/admin/users/${id}`, payload);
-  },
-
   toggleUserStatus: (id: number, status: string): Promise<AdminUserResponse> => {
     return axiosClient.put(`/admin/users/${id}`, { status });
   },
 
-  deleteUser: (id: number): Promise<string> => {
-    return axiosClient.delete(`/admin/users/${id}`);
-  },
-
   createVocabulary: (categoryId: number, word: string, description: string): Promise<ApiResponse<any>> => {
     return axiosClient.post('/admin/vocabulary', {
+      categoryId,
+      word,
+      description
+    });
+  },
+
+  updateVocabulary: (id: number, categoryId: number, word: string, description: string): Promise<ApiResponse<any>> => {
+    return axiosClient.put(`/admin/vocabulary/${id}`, {
       categoryId,
       word,
       description
@@ -161,6 +187,14 @@ export const adminApi = {
     return axiosClient.get(`/admin/blogs/${id}`);
   },
 
+  getBlogComments: (id: number): Promise<BlogCommentResponse[]> => {
+    return axiosClient.get(`/admin/blogs/${id}/comments`);
+  },
+
+  getBlogLikers: (id: number): Promise<LikeUserResponse[]> => {
+    return axiosClient.get(`/admin/blogs/${id}/likes`);
+  },
+
   createBlog: (payload: CreateBlogPayload): Promise<AdminBlogResponse> => {
     return axiosClient.post('/admin/blogs', payload);
   },
@@ -179,5 +213,23 @@ export const adminApi = {
     return axiosClient.post(`/admin/blogs/${id}/thumbnail`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+  },
+
+  // ─── Reports (admin xu ly to cao) ─────────────────────────────────────────
+  getReports: (page = 0, size = 50): Promise<PageResponse<BlogReportResponse>> => {
+    return axiosClient.get(`/admin/reports?page=${page}&size=${size}`);
+  },
+
+  getPendingReportCount: (): Promise<number> => {
+    return axiosClient.get('/admin/reports/pending-count');
+  },
+
+  resolveReport: (reportId: number): Promise<string> => {
+    return axiosClient.put(`/admin/reports/${reportId}/resolve`);
+  },
+
+  // Go bai bi to cao kem ly do -> bai chuyen REMOVED, tac gia thay ly do
+  removeBlogWithReason: (blogId: number, reason: string): Promise<string> => {
+    return axiosClient.post(`/admin/reports/blogs/${blogId}/remove`, { reason });
   },
 };

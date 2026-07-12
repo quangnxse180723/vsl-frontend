@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import { validateEmail, validateRequired, isFormValid } from '../utils/validation';
 
 interface LoginViewProps {
-  onLogin: (email: string, password?: string) => void;
+  onLogin: (email: string, password?: string) => Promise<void>;
   onSwitchToRegister: () => void;
 }
 
@@ -20,14 +21,31 @@ export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProp
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<{ email: string; password: string }>({ email: '', password: '' });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setErrorMessage('Vui lòng điền đầy đủ thông tin.');
-      return;
+    if (submitting) return;
+    const fieldErrors = {
+      email: validateEmail(email),
+      password: validateRequired(password, 'Mật khẩu'),
+    };
+    setErrors(fieldErrors);
+    if (!isFormValid(fieldErrors)) return;
+
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      await onLogin(email, password);
+      // Thanh cong: App chuyen sang giao dien chinh.
+    } catch (err: any) {
+      // Hien thong bao sai email/mat khau (hoac tai khoan bi khoa) ngay tren man
+      // dang nhap thay vi khong phan hoi gi.
+      setErrorMessage(err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+    } finally {
+      setSubmitting(false);
     }
-    onLogin(email, password);
   };
 
   const containerVariants = {
@@ -134,13 +152,13 @@ export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProp
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
                   <input
                     type="email"
-                    required
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setErrorMessage(''); }}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                    onChange={(e) => { setEmail(e.target.value); setErrors(p => ({ ...p, email: '' })); setErrorMessage(''); }}
+                    className={`w-full pl-10 pr-4 py-3 bg-white/10 border rounded-xl outline-none focus:bg-white/20 transition-all text-white placeholder:text-white/40 text-sm shadow-inner ${errors.email ? 'border-red-500/60 focus:border-red-400' : 'border-white/20 focus:border-indigo-400'}`}
                     placeholder="nguoidung@email.com"
                   />
                 </div>
+                {errors.email && <p className="text-[11px] text-red-400 ml-1">{errors.email}</p>}
               </motion.div>
 
               <motion.div variants={itemVariants} className="space-y-1.5">
@@ -152,27 +170,30 @@ export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProp
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setErrorMessage(''); }}
-                    className="w-full pl-10 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl outline-none focus:bg-white/20 focus:border-indigo-400 transition-all text-white placeholder:text-white/40 text-sm shadow-inner"
+                    onChange={(e) => { setPassword(e.target.value); setErrors(p => ({ ...p, password: '' })); setErrorMessage(''); }}
+                    className={`w-full pl-10 pr-10 py-3 bg-white/10 border rounded-xl outline-none focus:bg-white/20 transition-all text-white placeholder:text-white/40 text-sm shadow-inner ${errors.password ? 'border-red-500/60 focus:border-red-400' : 'border-white/20 focus:border-indigo-400'}`}
                     placeholder="••••••••"
                   />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {errors.password && <p className="text-[11px] text-red-400 ml-1">{errors.password}</p>}
               </motion.div>
 
               <motion.div variants={itemVariants} className="pt-2">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={submitting ? undefined : { scale: 1.02 }}
+                  whileTap={submitting ? undefined : { scale: 0.98 }}
                   type="submit"
-                  className="w-full relative group/btn overflow-hidden bg-indigo-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-indigo-500 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] text-sm"
+                  disabled={submitting}
+                  className="w-full relative group/btn overflow-hidden bg-indigo-600 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-indigo-500 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] text-sm disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <span className="relative z-10">Đăng Nhập Khám Phá</span>
-                  <ArrowRight className="w-4 h-4 relative z-10 group-hover/btn:translate-x-1 transition-transform" />
+                  <span className="relative z-10">{submitting ? 'Đang đăng nhập...' : 'Đăng Nhập Khám Phá'}</span>
+                  {submitting
+                    ? <Loader2 className="w-4 h-4 relative z-10 animate-spin" />
+                    : <ArrowRight className="w-4 h-4 relative z-10 group-hover/btn:translate-x-1 transition-transform" />}
                 </motion.button>
               </motion.div>
             </form>

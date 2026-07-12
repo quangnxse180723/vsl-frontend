@@ -8,6 +8,7 @@ import { attemptApi } from './services/api/attemptApi';
 import { practiceApi, PracticeStatsResponse } from './services/api/practiceApi';
 import { achievementApi, AchievementApiResponse } from './services/api/achievementApi';
 import { adminApi } from './services/api/adminApi';
+import { analyticsApi } from './services/api/analyticsApi';
 import LoginView from './pages/LoginView';
 import RegisterView from './pages/RegisterView';
 import DashboardView from './pages/DashboardView';
@@ -87,6 +88,7 @@ function mapVocabularyResponse(v: VocabularyResponse): Vocabulary {
     id: v.id.toString(),
     name: v.word,
     category: v.categoryName,
+    categoryId: v.categoryId,
     attribute: 'Chuyển động',
     image: v.imageUrl || VOCAB_THUMBNAIL,
     description: v.description,
@@ -136,7 +138,13 @@ export default function App() {
         practiceApi.getMyProgress()
       ]);
 
-      const vocabList: Vocabulary[] = vocabRes.data.content.map(mapVocabularyResponse);
+      // Gan learningStatus tung tu vung tu /practice/progress (khong co dong nao
+      // trong do = chua tung luyen tap = "Chua hoc", hien thi mac dinh undefined).
+      const progressByVocabId = new Map(progressRes.data.map(p => [p.vocabularyId, p.learningStatus]));
+      const vocabList: Vocabulary[] = vocabRes.data.content.map(v => ({
+        ...mapVocabularyResponse(v),
+        learningStatus: progressByVocabId.get(v.id)
+      }));
 
       const mappedLessons: Lesson[] = catRes.content.map(cat => {
         const relatedVocab = vocabRes.data.content.filter(v => v.categoryId === cat.id);
@@ -203,6 +211,18 @@ export default function App() {
     }
   };
 
+  // Ghi 1 luot truy cap moi phien trinh duyet (ca khach lan hoc vien).
+  // sessionStorage giu co trong 1 phien tab -> reload khong dem trung; tab/phien
+  // moi se dem lai. Chay 1 lan khi mo app, bat ke da dang nhap hay chua.
+  useEffect(() => {
+    if (sessionStorage.getItem('visit_tracked')) return;
+    sessionStorage.setItem('visit_tracked', '1');
+    analyticsApi.trackVisit().catch(() => {
+      // Tracking that bai khong duoc anh huong trai nghiem
+      sessionStorage.removeItem('visit_tracked');
+    });
+  }, []);
+
   // Attempt auto-login if token exists
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -230,7 +250,8 @@ export default function App() {
         email: u.email,
         status: u.status === 'ACTIVE' ? 'Active' : 'Idle',
         proficiency: 0, // BE khong tra ve chi so nay, chua co du lieu thuc de hien thi
-        lastActive: new Date(u.createdAt).toLocaleDateString(),
+        // Hoat dong gan nhat = lan dang nhap thuc te (khong phai ngay tao tai khoan)
+        lastActive: u.lastLogin ? new Date(u.lastLogin).toLocaleString('vi-VN') : 'Chưa đăng nhập',
         avatar: u.avatarUrl || DEFAULT_AVATAR,
         username: u.username,
         role: u.role === 'ADMIN' ? 'ADMIN' : 'USER'
@@ -257,36 +278,6 @@ export default function App() {
       displayToast(`Đã cập nhật trạng thái người dùng thành ${newStatus === 'ACTIVE' ? 'Hoạt động' : 'Ngừng hoạt động'}`);
     } catch (error) {
       displayToast('Không thể cập nhật trạng thái người dùng');
-    }
-  };
-
-  const handleCreateUser = async (payload: { username: string; email: string; password: string; fullName: string; role: 'USER' | 'ADMIN'; status: 'ACTIVE' | 'INACTIVE' }) => {
-    try {
-      await adminApi.createUser(payload);
-      displayToast(`Đã tạo người dùng ${payload.username}`);
-      await loadAdminUsers();
-    } catch (error) {
-      displayToast('Không thể tạo người dùng');
-    }
-  };
-
-  const handleAdminUpdateUser = async (userId: string, payload: { fullName?: string; role?: 'USER' | 'ADMIN'; status?: 'ACTIVE' | 'INACTIVE'; password?: string }) => {
-    try {
-      await adminApi.updateUser(Number(userId), payload);
-      displayToast('Đã cập nhật người dùng');
-      await loadAdminUsers();
-    } catch (error) {
-      displayToast('Không thể cập nhật người dùng');
-    }
-  };
-
-  const handleDeleteUser = async (userId: string) => {
-    try {
-      await adminApi.deleteUser(Number(userId));
-      displayToast('Đã vô hiệu hóa người dùng');
-      await loadAdminUsers();
-    } catch (error) {
-      displayToast('Không thể xóa người dùng');
     }
   };
 
@@ -322,6 +313,28 @@ export default function App() {
     }
   };
 
+  const handleUpdateVocabulary = async (vocabId: string, data: { name: string; categoryId: number; description: string; expectedId?: number; videoFile?: File; imageFile?: File }) => {
+    try {
+      await adminApi.updateVocabulary(Number(vocabId), data.categoryId, data.name, data.description);
+
+      // Video moi (thay video cu) - can expectedId di kem
+      if (data.videoFile && data.expectedId !== undefined) {
+        await adminApi.uploadVocabularyVideo(Number(vocabId), data.expectedId, data.videoFile);
+      }
+      // Anh moi (endpoint tu xoa anh cu tren MinIO)
+      if (data.imageFile) {
+        await adminApi.uploadVocabularyImage(Number(vocabId), data.imageFile);
+      }
+
+      // Tai lai danh sach de dong bo ten danh muc / URL anh-video moi
+      const vocabRes = await vocabularyApi.getAll(0, 500);
+      setVocabularyList(vocabRes.data.content.map(mapVocabularyResponse));
+      displayToast(`Đã cập nhật từ vựng "${data.name}"!`);
+    } catch (error) {
+      displayToast('Không thể cập nhật từ vựng');
+    }
+  };
+
   const displayToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
@@ -331,14 +344,12 @@ export default function App() {
 
   // Handler Actions
   const handleRegister = async (name: string, username: string, email: string, password: string) => {
-    try {
-      const response = await authApi.register({ email, password, fullName: name, username });
-      if (response.data) {
-        displayToast('Tạo tài khoản thành công! Vui lòng đăng nhập.');
-        setIsRegistering(false);
-      }
-    } catch (error) {
-      displayToast('Đăng ký thất bại. Email có thể đã được sử dụng.');
+    // KHONG bat loi o day: man dang ky khong render toast, nen de loi lan ra
+    // cho RegisterView hien thi truc tiep (kem thong bao that tu backend).
+    const response = await authApi.register({ email, password, fullName: name, username });
+    if (response.data) {
+      setIsRegistering(false);
+      displayToast('Tạo tài khoản thành công! Vui lòng đăng nhập.');
     }
   };
 
@@ -350,6 +361,12 @@ export default function App() {
           localStorage.setItem('accessToken', response.data.accessToken);
           localStorage.setItem('refreshToken', response.data.refreshToken);
 
+          // Ghi lai 1 luot truy cap SAU khi da co token -> backend gan visit voi
+          // user (interceptor tu dinh kem Bearer). Luot track luc mo app la GUEST
+          // vi luc do chua dang nhap, nen neu khong track lai o day thi admin luon
+          // thay hoc vien duoi dang "Khach".
+          analyticsApi.trackVisit().catch(() => { /* tracking that bai khong anh huong dang nhap */ });
+
           // Login response already includes the user profile, no need for a
           // separate GET /auth/me round-trip right after signing in.
           const newUser = mapUserResponseToUser(response.data.user);
@@ -358,9 +375,16 @@ export default function App() {
         }
         setIsLoggedIn(true);
         displayToast('Đăng nhập thành công. Chào mừng trở lại!');
-      } catch (error) {
-        displayToast('Sai thông tin đăng nhập. Vui lòng thử lại.');
-        return; // Important: Stop execution so we don't login
+      } catch (error: any) {
+        // AUTH_1006 = tai khoan bi admin chuyen sang INACTIVE (xem GlobalExceptionHandler).
+        // Nem loi ra ngoai (thay vi displayToast) de LoginView hien thi truc tiep -
+        // toast KHONG duoc render tren man dang nhap nen truoc day loi bi "cam nin".
+        const errorCode = error?.response?.data?.code;
+        throw new Error(
+          errorCode === 'AUTH_1006'
+            ? 'Tài khoản của bạn đã bị quản trị viên vô hiệu hóa.'
+            : 'Sai thông tin đăng nhập. Vui lòng kiểm tra lại email và mật khẩu.'
+        );
       }
     } else {
       // Guest login fallback when no password is provided
@@ -462,11 +486,9 @@ export default function App() {
           vocabularyList={vocabularyList}
           lessons={lessons}
           onToggleUserStatus={handleToggleUserStatus}
-          onCreateUser={handleCreateUser}
-          onUpdateUser={handleAdminUpdateUser}
-          onDeleteUser={handleDeleteUser}
           onAddVocabulary={handleAddVocabulary}
           onDeleteVocabulary={handleDeleteVocabulary}
+          onUpdateVocabulary={handleUpdateVocabulary}
           onRefreshCategories={loadDashboardData}
           onLogout={handleLogout}
         />
@@ -684,7 +706,7 @@ export default function App() {
             )}
 
             {currentTab === 'blog' && (
-              <BlogView />
+              <BlogView currentUser={currentUser} />
             )}
 
             {currentTab === 'my-blogs' && (

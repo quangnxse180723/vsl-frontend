@@ -63,7 +63,7 @@ export default function LessonDetailView({
         {/* Left Column: HD Player + Tips (8/12 wide) */}
         <div className="lg:col-span-8 space-y-6">
           <header className="space-y-1">
-            <h2 className="font-display text-2xl md:text-3xl font-extrabold text-[#111111]">
+            <h2 className="font-display text-2xl md:text-3xl font-extrabold text-gradient-brand">
               {activeVocab ? `${lesson.category}: ${activeVocab.name}` : lesson.title}
             </h2>
             <p className="text-sm text-on-surface-variant">
@@ -162,7 +162,7 @@ export default function LessonDetailView({
           {/* Vocabulary List card */}
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
             <header className="flex justify-between items-center pb-2 border-b border-outline-variant/10">
-              <h3 className="font-display text-lg font-bold text-on-surface">Từ Vựng</h3>
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Từ Vựng</h3>
               <span className="text-xs font-semibold text-outline">
                 {currentVocabItems.length} Ký Hiệu
               </span>
@@ -176,16 +176,29 @@ export default function LessonDetailView({
                   <div
                     key={v.id}
                     onClick={() => setActiveVocab(v)}
-                    className={`p-3 rounded-xl border flex items-center space-x-3 cursor-pointer transition-all ${
+                    className={`relative p-3 rounded-xl border flex items-center space-x-3 cursor-pointer transition-all ${
                       activeVocab?.id === v.id
                         ? 'bg-primary-container/10 border-primary shadow-sm'
                         : 'bg-surface-container-lowest border-outline-variant/30 hover:border-outline'
                     }`}
                   >
-                    <div className="w-12 h-12 rounded-lg bg-surface-variant shrink-0 overflow-hidden relative border border-outline-variant/40">
+                    {/* Nhan goc the: trang thai hoc cua tu vung nay. Dat o goc ca
+                        the (rong hon nhieu so voi anh thumbnail 48px) de chu du
+                        cho, khong bi tran/kho doc. */}
+                    <span className={`absolute -top-1.5 -right-1.5 leading-none px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm whitespace-nowrap ${
+                      v.learningStatus === 'LEARNED'
+                        ? 'bg-green-600 text-white'
+                        : v.learningStatus === 'LEARNING'
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-slate-400 text-white'
+                    }`}>
+                      {v.learningStatus === 'LEARNED' ? 'Đã học' : v.learningStatus === 'LEARNING' ? 'Đang học' : 'Chưa học'}
+                    </span>
+
+                    <div className="w-12 h-12 rounded-lg bg-surface-variant shrink-0 overflow-hidden border border-outline-variant/40">
                       <img className="w-full h-full object-cover" src={v.image} alt={v.name} />
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <h4 className="font-label-bold text-sm text-on-surface truncate">{v.name}</h4>
                       <p className="text-xs text-on-surface-variant truncate">Tư thế {v.attribute}</p>

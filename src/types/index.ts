@@ -46,11 +46,16 @@ export interface Vocabulary {
   id: string;
   name: string;
   category: string;
+  categoryId: number;
   attribute: string;
   image: string;
   description: string;
   videoUrl?: string;
   expectedId: number;
+  // Tien do hoc cua tu vung nay doi voi user hien tai (undefined = chua tung
+  // luyen tap tu nay - "Chua hoc"). LEARNING = da luyen nhung chua lam dung
+  // lan nao. LEARNED = da lam dung it nhat 1 lan (khong bao gio bi ha cap).
+  learningStatus?: 'LEARNING' | 'LEARNED';
 }
 
 export interface Achievement {
