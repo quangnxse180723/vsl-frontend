@@ -6,6 +6,7 @@ import { validateEmail, validateRequired, isFormValid } from '../utils/validatio
 interface LoginViewProps {
   onLogin: (email: string, password?: string) => Promise<void>;
   onSwitchToRegister: () => void;
+  onBack?: () => void;
 }
 
 const stardustParticles = Array.from({ length: 25 }).map((_, i) => ({
@@ -16,7 +17,7 @@ const stardustParticles = Array.from({ length: 25 }).map((_, i) => ({
   delay: Math.random() * 10,
 }));
 
-export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProps) {
+export default function LoginView({ onLogin, onSwitchToRegister, onBack }: LoginViewProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -101,16 +102,22 @@ export default function LoginView({ onLogin, onSwitchToRegister }: LoginViewProp
           
           <div className="relative z-10 w-full">
             <div className="flex items-center gap-2 mb-12">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20 shadow-inner backdrop-blur-md">
-                <Sparkles className="w-5 h-5 text-indigo-400" />
-              </div>
-              <motion.span 
-                animate={{ opacity: [0.7, 1, 0.7], textShadow: ["0px 0px 2px rgba(255,255,255,0.1)", "0px 0px 12px rgba(255,255,255,0.9)", "0px 0px 2px rgba(255,255,255,0.1)"] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className="font-display text-xl font-bold tracking-tight text-white"
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 group cursor-pointer bg-transparent border-none p-0"
+                style={{ cursor: onBack ? 'pointer' : 'default' }}
               >
-                SignMentor
-              </motion.span>
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20 shadow-inner backdrop-blur-md group-hover:bg-white/20 transition-colors">
+                  <Sparkles className="w-5 h-5 text-indigo-400" />
+                </div>
+                <motion.span 
+                  animate={{ opacity: [0.7, 1, 0.7], textShadow: ["0px 0px 2px rgba(255,255,255,0.1)", "0px 0px 12px rgba(255,255,255,0.9)", "0px 0px 2px rgba(255,255,255,0.1)"] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="font-display text-xl font-bold tracking-tight text-white group-hover:text-indigo-300 transition-colors"
+                >
+                  SignMentor
+                </motion.span>
+              </button>
             </div>
 
             <h1 className="font-display text-4xl lg:text-5xl font-extrabold leading-[1.1] mb-4">

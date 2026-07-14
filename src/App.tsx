@@ -19,6 +19,7 @@ import AdminView from './pages/AdminView';
 import ProfileView from './pages/ProfileView';
 import BlogView from './pages/BlogView';
 import MyBlogsView from './pages/MyBlogsView';
+import LandingPage from './pages/LandingPage';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
 const VOCAB_THUMBNAIL = 'https://images.unsplash.com/photo-1543269865-cbf427effbad?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
@@ -103,6 +104,7 @@ export default function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin' | 'blog' | 'my-blogs'>('dashboard');
+  const [showLanding, setShowLanding] = useState(true);
 
   // Drill-down Detail Lesson State
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
@@ -232,6 +234,7 @@ export default function App() {
       if (userRes.data) {
         setCurrentUser(mapUserResponseToUser(userRes.data));
         setIsLoggedIn(true);
+        setShowLanding(false);
         loadDashboardData();
       }
     }).catch(() => {
@@ -423,6 +426,7 @@ export default function App() {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       setIsLoggedIn(false);
+      setCurrentUser(null);
       setSelectedLessonId(null);
       displayToast('Tạm biệt! Bạn đã đăng xuất.');
     }
@@ -451,6 +455,47 @@ export default function App() {
 
   const currentActiveLesson = lessons.find(l => l.id === selectedLessonId);
 
+  // Show landing page when explicitly requested (works for both logged-in and logged-out users)
+  if (showLanding) {
+    // Build real stats from practiceStats + lessons when logged in
+    const realStats = practiceStats ? {
+      streak: practiceStats.currentStreak ?? 0,
+      accuracy: practiceStats.accuracy != null ? Math.round(practiceStats.accuracy) : 0,
+      learnedCount: practiceStats.totalAttempts ?? 0,
+    } : null;
+
+    const realLessons = lessons.slice(0, 2).map(l => ({
+      title: l.title,
+      progress: l.progress ?? 0,
+    }));
+
+    return (
+      <LandingPage
+        currentUser={currentUser ? { name: currentUser.name, avatar: currentUser.avatar } : null}
+        realStats={isLoggedIn ? realStats : null}
+        realLessons={isLoggedIn && realLessons.length > 0 ? realLessons : undefined}
+        onNavigate={(tab) => {
+          setShowLanding(false);
+          setCurrentTab(tab);
+        }}
+        onGetStarted={() => {
+          setShowLanding(false);
+          if (isLoggedIn) {
+            setCurrentTab('lessons');
+          } else {
+            setIsRegistering(true);
+          }
+        }}
+        onLogin={() => {
+          setShowLanding(false);
+          if (isLoggedIn) {
+            setCurrentTab('dashboard');
+          }
+        }}
+      />
+    );
+  }
+
   // Sign in conditional block
   if (!isLoggedIn || !currentUser) {
     if (isRegistering) {
@@ -458,6 +503,16 @@ export default function App() {
         <RegisterView
           onRegister={handleRegister}
           onSwitchToLogin={() => setIsRegistering(false)}
+          onBack={() => { setIsRegistering(false); setShowLanding(true); }}
+        />
+      );
+    }
+    // Show landing page first, then login
+    if (false) { // Now handled above
+      return (
+        <LandingPage
+          onGetStarted={() => { setShowLanding(false); setIsRegistering(true); }}
+          onLogin={() => setShowLanding(false)}
         />
       );
     }
@@ -465,6 +520,7 @@ export default function App() {
       <LoginView
         onLogin={handleLogin}
         onSwitchToRegister={() => setIsRegistering(true)}
+        onBack={() => setShowLanding(true)}
       />
     );
   }
@@ -510,8 +566,11 @@ export default function App() {
       {/* Side Navigation Rail (Left Rail) */}
       <aside className="w-full md:w-64 bg-surface-container-lowest shrink-0 border-b md:border-b-0 md:border-r border-outline-variant/30 px-5 py-6 flex flex-col justify-between">
         <div className="space-y-8">
-          {/* Brand Logo */}
-          <div className="flex items-center gap-2 px-2">
+          {/* Brand Logo - click to go to landing page */}
+          <button
+            onClick={() => setShowLanding(true)}
+            className="flex items-center gap-2 px-2 w-full text-left bg-transparent border-none cursor-pointer hover:opacity-80 transition-opacity"
+          >
             <div className="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center border border-primary/20 shadow-sm text-primary">
               <span className="material-symbols-outlined text-2xl" style={{fontVariationSettings: "'FILL' 1"}}>sign_language</span>
             </div>
@@ -519,7 +578,7 @@ export default function App() {
               <span className="font-display font-bold text-xl text-primary leading-none block">SignMentor</span>
               <p className="text-[10px] text-outline font-semibold">Học Ngôn Ngữ Ký Hiệu Cùng AI</p>
             </div>
-          </div>
+          </button>
 
           {/* Navigation Links */}
           <nav className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 gap-1.5 scrollbar-none select-none">
