@@ -11,6 +11,7 @@ import { adminApi } from './services/api/adminApi';
 import { analyticsApi } from './services/api/analyticsApi';
 import LoginView from './pages/LoginView';
 import RegisterView from './pages/RegisterView';
+import ForgotPasswordView from './pages/ForgotPasswordView';
 import DashboardView from './pages/DashboardView';
 import LessonsView from './pages/LessonsView';
 import LessonDetailView from './pages/LessonDetailView';
@@ -102,6 +103,7 @@ export default function App() {
   // Session States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin' | 'blog' | 'my-blogs'>('dashboard');
   const [showLanding, setShowLanding] = useState(true);
@@ -460,7 +462,7 @@ export default function App() {
     // Build real stats from practiceStats + lessons when logged in
     const realStats = practiceStats ? {
       streak: practiceStats.currentStreak ?? 0,
-      accuracy: practiceStats.accuracy != null ? Math.round(practiceStats.accuracy) : 0,
+      accuracy: practiceStats.accuracyRate != null ? Math.round(practiceStats.accuracyRate) : 0,
       learnedCount: practiceStats.totalAttempts ?? 0,
     } : null;
 
@@ -498,6 +500,18 @@ export default function App() {
 
   // Sign in conditional block
   if (!isLoggedIn || !currentUser) {
+    if (isForgotPassword) {
+      return (
+        <ForgotPasswordView
+          onBack={() => { setIsForgotPassword(false); setShowLanding(true); }}
+          onResetSuccess={() => {
+            setIsForgotPassword(false);
+            displayToast('Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.');
+          }}
+        />
+      );
+    }
+    
     if (isRegistering) {
       return (
         <RegisterView
@@ -507,19 +521,11 @@ export default function App() {
         />
       );
     }
-    // Show landing page first, then login
-    if (false) { // Now handled above
-      return (
-        <LandingPage
-          onGetStarted={() => { setShowLanding(false); setIsRegistering(true); }}
-          onLogin={() => setShowLanding(false)}
-        />
-      );
-    }
     return (
       <LoginView
         onLogin={handleLogin}
         onSwitchToRegister={() => setIsRegistering(true)}
+        onForgotPassword={() => setIsForgotPassword(true)}
         onBack={() => setShowLanding(true)}
       />
     );

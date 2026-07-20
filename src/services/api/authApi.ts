@@ -28,5 +28,17 @@ export const authApi = {
   
   refreshToken: (refreshToken: string): Promise<ApiResponse<AuthResponse>> => {
     return axiosClient.post('/auth/refresh', { refreshToken });
+  },
+
+  forgotPassword: (email: string): Promise<ApiResponse<void>> => {
+    return axiosClient.post('/auth/forgot-password', { email });
+  },
+
+  verifyOtp: (email: string, otp: string): Promise<ApiResponse<void>> => {
+    return axiosClient.post('/auth/verify-otp', { email, otp });
+  },
+
+  resetPassword: (email: string, otp: string, newPassword: string): Promise<ApiResponse<void>> => {
+    return axiosClient.post('/auth/reset-password', { email, otp, newPassword });
   }
 };

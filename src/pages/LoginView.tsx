@@ -6,6 +6,7 @@ import { validateEmail, validateRequired, isFormValid } from '../utils/validatio
 interface LoginViewProps {
   onLogin: (email: string, password?: string) => Promise<void>;
   onSwitchToRegister: () => void;
+  onForgotPassword: () => void;
   onBack?: () => void;
 }
 
@@ -17,7 +18,7 @@ const stardustParticles = Array.from({ length: 25 }).map((_, i) => ({
   delay: Math.random() * 10,
 }));
 
-export default function LoginView({ onLogin, onSwitchToRegister, onBack }: LoginViewProps) {
+export default function LoginView({ onLogin, onSwitchToRegister, onForgotPassword, onBack }: LoginViewProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -59,7 +60,7 @@ export default function LoginView({ onLogin, onSwitchToRegister, onBack }: Login
 
   const itemVariants = {
     hidden: { opacity: 0, y: 10 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } }
   };
 
   return (
@@ -171,7 +172,7 @@ export default function LoginView({ onLogin, onSwitchToRegister, onBack }: Login
               <motion.div variants={itemVariants} className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
                   <label className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Mật khẩu</label>
-                  <a href="#" className="text-[10px] font-semibold text-indigo-300 hover:text-white transition-colors">Quên Mật Khẩu?</a>
+                  <button type="button" onClick={onForgotPassword} className="text-[10px] font-semibold text-indigo-300 hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0">Quên Mật Khẩu?</button>
                 </div>
                 <div className="relative group/input">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 group-focus-within/input:text-white transition-colors" />
