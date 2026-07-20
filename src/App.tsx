@@ -353,9 +353,8 @@ export default function App() {
       await authApi.register({ fullName: name, username, email, password, otp });
       // Don't auto-login here because we don't return tokens on register anymore,
       // just switch to login view so they can log in
-      setToastMessage('Đăng ký thành công! Vui lòng đăng nhập.');
+      displayToast('Đăng ký thành công! Vui lòng đăng nhập.');
       setIsRegistering(false);
-      setTimeout(() => setToastMessage(null), 3000);
     } catch (error: any) {
       console.error('Registration failed:', error);
       throw error;
@@ -506,32 +505,56 @@ export default function App() {
   if (!isLoggedIn || !currentUser) {
     if (isForgotPassword) {
       return (
-        <ForgotPasswordView
-          onBack={() => { setIsForgotPassword(false); setShowLanding(true); }}
-          onResetSuccess={() => {
-            setIsForgotPassword(false);
-            displayToast('Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.');
-          }}
-        />
+        <>
+          {toastMessage && (
+            <div className="fixed bottom-6 right-6 z-50 p-4 bg-gray-900 text-white text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-gray-700 animate-pulse">
+              <span className="material-symbols-outlined text-indigo-400 text-xl">info</span>
+              {toastMessage}
+            </div>
+          )}
+          <ForgotPasswordView
+            onBack={() => { setIsForgotPassword(false); setShowLanding(true); }}
+            onResetSuccess={() => {
+              setIsForgotPassword(false);
+              displayToast('Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.');
+            }}
+          />
+        </>
       );
     }
     
     if (isRegistering) {
       return (
-        <RegisterView
-          onRegister={handleRegister}
-          onSwitchToLogin={() => setIsRegistering(false)}
-          onBack={() => { setIsRegistering(false); setShowLanding(true); }}
-        />
+        <>
+          {toastMessage && (
+            <div className="fixed bottom-6 right-6 z-50 p-4 bg-gray-900 text-white text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-gray-700 animate-pulse">
+              <span className="material-symbols-outlined text-indigo-400 text-xl">info</span>
+              {toastMessage}
+            </div>
+          )}
+          <RegisterView
+            onRegister={handleRegister}
+            onSwitchToLogin={() => setIsRegistering(false)}
+            onBack={() => { setIsRegistering(false); setShowLanding(true); }}
+          />
+        </>
       );
     }
     return (
-      <LoginView
-        onLogin={handleLogin}
-        onSwitchToRegister={() => setIsRegistering(true)}
-        onForgotPassword={() => setIsForgotPassword(true)}
-        onBack={() => setShowLanding(true)}
-      />
+      <>
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 p-4 bg-gray-900 text-white text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-gray-700 animate-pulse">
+            <span className="material-symbols-outlined text-indigo-400 text-xl">info</span>
+            {toastMessage}
+          </div>
+        )}
+        <LoginView
+          onLogin={handleLogin}
+          onSwitchToRegister={() => setIsRegistering(true)}
+          onForgotPassword={() => setIsForgotPassword(true)}
+          onBack={() => setShowLanding(true)}
+        />
+      </>
     );
   }
 
@@ -541,8 +564,8 @@ export default function App() {
     return (
       <>
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 p-4 bg-on-surface text-surface text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-outline-variant/30 animate-pulse">
-            <span className="material-symbols-outlined text-primary text-xl">info</span>
+          <div className="fixed bottom-6 right-6 z-50 p-4 bg-gray-900 text-white text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-gray-700 animate-pulse">
+            <span className="material-symbols-outlined text-indigo-400 text-xl">info</span>
             {toastMessage}
           </div>
         )}
@@ -567,8 +590,8 @@ export default function App() {
 
       {/* GLOBAL TOAST BANNER OVERLAY */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 bg-on-surface text-surface text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-outline-variant/30 animate-pulse">
-          <span className="material-symbols-outlined text-primary text-xl">info</span>
+        <div className="fixed bottom-6 right-6 z-50 p-4 bg-gray-900 text-white text-sm font-semibold rounded-xl shadow-xl flex items-center gap-2 border border-gray-700 animate-pulse">
+          <span className="material-symbols-outlined text-indigo-400 text-xl">info</span>
           {toastMessage}
         </div>
       )}
