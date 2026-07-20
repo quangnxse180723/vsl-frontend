@@ -14,8 +14,12 @@ export const authApi = {
     return axiosClient.post('/auth/login', data);
   },
 
-  register: (data: RegisterRequest): Promise<ApiResponse<UserResponse>> => {
+  register: (data: RegisterRequest & { otp: string }): Promise<ApiResponse<UserResponse>> => {
     return axiosClient.post('/auth/register', data);
+  },
+
+  sendRegisterOtp: (email: string, username: string): Promise<ApiResponse<void>> => {
+    return axiosClient.post('/auth/send-register-otp', { email, username });
   },
 
   logout: (refreshToken: string): Promise<ApiResponse<void>> => {

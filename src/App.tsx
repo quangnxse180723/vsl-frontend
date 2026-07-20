@@ -348,13 +348,17 @@ export default function App() {
   };
 
   // Handler Actions
-  const handleRegister = async (name: string, username: string, email: string, password: string) => {
-    // KHONG bat loi o day: man dang ky khong render toast, nen de loi lan ra
-    // cho RegisterView hien thi truc tiep (kem thong bao that tu backend).
-    const response = await authApi.register({ email, password, fullName: name, username });
-    if (response.data) {
+  const handleRegister = async (name: string, username: string, email: string, password: string, otp: string) => {
+    try {
+      await authApi.register({ fullName: name, username, email, password, otp });
+      // Don't auto-login here because we don't return tokens on register anymore,
+      // just switch to login view so they can log in
+      setToastMessage('Đăng ký thành công! Vui lòng đăng nhập.');
       setIsRegistering(false);
-      displayToast('Tạo tài khoản thành công! Vui lòng đăng nhập.');
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Registration failed:', error);
+      throw error;
     }
   };
 
