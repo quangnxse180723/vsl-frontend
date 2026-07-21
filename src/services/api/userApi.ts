@@ -9,6 +9,7 @@ export interface UserProfileResponse {
   role: string;
   status: string;
   createdAt: string;
+  emailNotificationsEnabled: boolean;
 }
 
 export const userApi = {
@@ -41,5 +42,9 @@ export const userApi = {
 
   updateAvatarUrl: (avatarUrl: string): Promise<UserProfileResponse> => {
     return axiosClient.put('/users/avatar', { avatarUrl });
+  },
+
+  updateNotificationSettings: (emailNotificationsEnabled: boolean): Promise<UserProfileResponse> => {
+    return axiosClient.patch(`/users/me/notifications?emailNotificationsEnabled=${emailNotificationsEnabled}`);
   }
 };

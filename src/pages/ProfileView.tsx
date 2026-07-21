@@ -13,8 +13,9 @@ interface ProfileViewProps {
 }
 
 export default function ProfileView({ currentUser, achievements, onLogout, onUpdateUser }: ProfileViewProps) {
-  // Settings Toggles (local-only preferences, no backend endpoint exists for these yet)
-  const [emailNotify, setEmailNotify] = useState(true);
+  // Settings Toggles - backed by PATCH /api/users/me/notifications
+  const [emailNotify, setEmailNotify] = useState(false);
+  const [savingNotify, setSavingNotify] = useState(false);
 
   // Profile identity fields, backed by GET/PUT /api/users/me
   const [username, setUsername] = useState('');
@@ -41,11 +42,26 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
       setUsername(profile.username);
       setEmail(profile.email);
       setFullName(profile.fullName);
+      setEmailNotify(profile.emailNotificationsEnabled ?? false);
       setProfileLoaded(true);
     }).catch(() => {
       setErrorMessage('Không thể tải thông tin hồ sơ từ máy chủ.');
     });
   }, []);
+
+  const handleToggleNotification = async (value: boolean) => {
+    if (savingNotify) return;
+    setSavingNotify(true);
+    try {
+      await userApi.updateNotificationSettings(value);
+      setEmailNotify(value);
+      flashSuccess(value ? 'Bật thông báo nhắc nhở thành công!' : 'Tắt thông báo nhắc nhở thành công!');
+    } catch {
+      flashError('Không thể cập nhật cài đặt. Vui lòng thử lại.');
+    } finally {
+      setSavingNotify(false);
+    }
+  };
 
   const flashSuccess = (msg: string) => {
     setSaveSuccess(msg);
@@ -241,8 +257,9 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   </div>
                   <button
                     type="button"
-                    onClick={() => setEmailNotify(!emailNotify)}
-                    className={`w-10 h-6 rounded-full transition-colors relative flex items-center shrink-0 ${emailNotify ? 'bg-primary' : 'bg-surface-container-high'}`}
+                    onClick={() => handleToggleNotification(!emailNotify)}
+                    disabled={savingNotify}
+                    className={`w-10 h-6 rounded-full transition-colors relative flex items-center shrink-0 disabled:opacity-60 ${emailNotify ? 'bg-primary' : 'bg-surface-container-high'}`}
                   >
                     <span className={`w-4 safety-box h-4 rounded-full bg-white transition-all absolute ${emailNotify ? 'left-5' : 'left-1'}`}></span>
                   </button>
