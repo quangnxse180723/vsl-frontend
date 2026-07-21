@@ -1,8 +1,7 @@
-
 import React, { useEffect, useState } from 'react';
 import { User, Achievement } from '../types';
 import { userApi } from '../services/api/userApi';
-import { Shield, LogOut, Save, Camera, ChevronDown } from 'lucide-react';
+import { Shield, LogOut, Save, Camera, ChevronDown, Bell, BellOff, Mail, Clock, Flame } from 'lucide-react';
 import { validateFullName, validateUsername, validateEmail, validatePassword, validateRequired, isFormValid } from '../utils/validation';
 
 interface ProfileViewProps {
@@ -55,7 +54,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
     try {
       await userApi.updateNotificationSettings(value);
       setEmailNotify(value);
-      flashSuccess(value ? 'Bật thông báo nhắc nhở thành công!' : 'Tắt thông báo nhắc nhở thành công!');
+      flashSuccess(value ? '🔔 Đã bật nhắc nhở học tập!' : '🔕 Đã tắt nhắc nhở học tập!');
     } catch {
       flashError('Không thể cập nhật cài đặt. Vui lòng thử lại.');
     } finally {
@@ -195,19 +194,19 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
         </div>
       </section>
 
-      {/* Main Grid: Info Preferences & Badges cabinet */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full">
 
-        {/* Left Side: Cabinets & Settings (7/12 wide) */}
+        {/* Left Side (7/12) */}
         <div className="lg:col-span-7 space-y-6">
+
+          {/* Profile Form */}
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
-              <span className="material-symbols-outlined text-primary">settings</span>
-              <h3 className="font-display text-lg font-bold text-gradient-brand">Tùy Chọn</h3>
+              <span className="material-symbols-outlined text-primary">person</span>
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Thông Tin Cá Nhân</h3>
             </div>
-
             <form onSubmit={handleSaveSettings} className="space-y-5">
-              {/* Profile details */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-outline">Họ và Tên</label>
                 <input
@@ -219,7 +218,6 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 />
                 {profileErrors.fullName && <p className="text-[11px] text-red-600">{profileErrors.fullName}</p>}
               </div>
-
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-outline">Tên Hiển Thị</label>
                 <input
@@ -231,7 +229,6 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 />
                 {profileErrors.username && <p className="text-[11px] text-red-600">{profileErrors.username}</p>}
               </div>
-
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-outline">Email</label>
                 <input
@@ -243,49 +240,152 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 />
                 {profileErrors.email && <p className="text-[11px] text-red-600">{profileErrors.email}</p>}
               </div>
-
-              {/* Toggles */}
-              <div className="space-y-4 pt-2">
-                {/* Notification */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined text-outline mt-0.5">notifications</span>
-                    <div>
-                      <p className="text-xs font-bold text-[#111111]">Nhắc nhở luyện tập hàng ngày</p>
-                      <p className="text-[10px] text-outline">Nhận email nhắc nhở khi chuỗi ngày học được gia hạn.</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleNotification(!emailNotify)}
-                    disabled={savingNotify}
-                    className={`w-10 h-6 rounded-full transition-colors relative flex items-center shrink-0 disabled:opacity-60 ${emailNotify ? 'bg-primary' : 'bg-surface-container-high'}`}
-                  >
-                    <span className={`w-4 safety-box h-4 rounded-full bg-white transition-all absolute ${emailNotify ? 'left-5' : 'left-1'}`}></span>
-                  </button>
-                </div>
-
-              </div>
-
-              {/* Save Settings Button */}
               <button
                 type="submit"
                 disabled={savingProfile || !profileLoaded}
                 className="w-full py-2.5 bg-primary hover:bg-primary/95 text-on-primary rounded-xl font-bold text-xs shadow transition-all flex items-center justify-center gap-1.5 active-scale disabled:opacity-60"
               >
                 <Save className="w-4 h-4" />
-                {savingProfile ? 'Đang lưu...' : 'Lưu Tùy Chọn'}
+                {savingProfile ? 'Đang lưu...' : 'Lưu Thông Tin'}
               </button>
             </form>
           </div>
 
-          {/* Password & Account Danger Zone */}
+          {/* ── Email Notification Card ── */}
+          <div className="rounded-2xl border border-outline-variant/30 elevation-1 overflow-hidden bg-surface-container-lowest">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-outline-variant/15 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-primary" />
+              <h3 className="font-display text-lg font-bold text-gradient-brand">Thông Báo Email</h3>
+            </div>
+
+            {/* Main toggle row */}
+            <div className="px-6 py-5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 ${emailNotify ? 'bg-primary/10' : 'bg-surface-container-high'}`}>
+                    {emailNotify
+                      ? <Bell className="w-5 h-5 text-primary" />
+                      : <BellOff className="w-5 h-5 text-outline" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-on-surface">Nhắc nhở chuỗi học tập</p>
+                    <p className="text-[11px] text-outline mt-0.5 leading-relaxed">
+                      Gửi email khi bạn sắp mất chuỗi ngày học liên tiếp.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Toggle switch */}
+                <button
+                  type="button"
+                  onClick={() => handleToggleNotification(!emailNotify)}
+                  disabled={savingNotify || !profileLoaded}
+                  aria-pressed={emailNotify}
+                  aria-label={emailNotify ? 'Tắt thông báo email' : 'Bật thông báo email'}
+                  className={`relative w-12 h-6 rounded-full transition-all duration-300 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed ${emailNotify ? 'bg-primary' : 'bg-surface-container-high'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all duration-300 ${emailNotify ? 'left-7' : 'left-1'}`} />
+                  {savingNotify && (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="w-3 h-3 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Status pill */}
+              <div className={`mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all duration-300 ${
+                emailNotify ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-surface-container-high text-outline border border-outline-variant/30'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full transition-colors ${emailNotify ? 'bg-green-500' : 'bg-outline'}`} />
+                {emailNotify ? 'Đang hoạt động' : 'Đã tắt'}
+              </div>
+            </div>
+
+            {/* When ENABLED: show details + email preview */}
+            {emailNotify && (
+              <div className="px-6 pb-6 space-y-4 border-t border-outline-variant/10">
+                {/* Info grid */}
+                <div className="grid grid-cols-3 gap-3 pt-4">
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
+                    <Clock className="w-4 h-4 text-primary mx-auto" />
+                    <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Giờ gửi</p>
+                    <p className="text-xs font-extrabold text-on-surface">19:00 VN</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
+                    <Flame className="w-4 h-4 text-orange-500 mx-auto" />
+                    <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Điều kiện</p>
+                    <p className="text-xs font-extrabold text-on-surface">Streak &gt; 0</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
+                    <Mail className="w-4 h-4 text-blue-500 mx-auto" />
+                    <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Tần suất</p>
+                    <p className="text-xs font-extrabold text-on-surface">1 lần / ngày</p>
+                  </div>
+                </div>
+
+                {/* Email preview mockup */}
+                <div className="rounded-xl border border-outline-variant/25 overflow-hidden">
+                  <div className="px-3 py-2 bg-surface-container-high border-b border-outline-variant/20 flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                    </div>
+                    <span className="text-[10px] font-bold text-outline ml-1">Xem trước email nhắc nhở</span>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-slate-900 to-indigo-950">
+                    {/* Email subject bar */}
+                    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
+                        <span className="text-sm">🔥</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-extrabold text-white truncate">🔥 Chuỗi 7 ngày sắp bị gãy! - SignMentor</p>
+                        <p className="text-[10px] text-white/50">noreply@signmentor.click → {email || 'bạn'}</p>
+                      </div>
+                    </div>
+                    {/* Email body preview */}
+                    <p className="text-[11px] text-white/80 leading-relaxed mb-2">
+                      Xin chào <span className="text-purple-300 font-bold">{fullName || 'bạn'}</span>,
+                    </p>
+                    <p className="text-[11px] text-white/60 leading-relaxed mb-3">
+                      Bạn có chuỗi học tập <span className="text-amber-400 font-bold">7 ngày</span> liên tiếp rất ấn tượng! Nhưng hôm nay chưa luyện tập và còn ít giờ để giữ chuỗi này.
+                    </p>
+                    <div className="text-center mb-2">
+                      <span className="text-4xl font-black text-amber-400">7</span>
+                      <p className="text-[10px] text-white/40 uppercase tracking-widest">Ngày liên tiếp</p>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg text-xs font-bold text-white shadow-lg">
+                        📚 Luyện tập ngay
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* When DISABLED: show info hint */}
+            {!emailNotify && profileLoaded && (
+              <div className="px-6 pb-5">
+                <div className="flex items-start gap-2.5 p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
+                  <BellOff className="w-4 h-4 text-outline shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-outline leading-relaxed">
+                    Bật thông báo để nhận email nhắc nhở lúc <strong className="text-on-surface">19h giờ VN</strong> khi bạn sắp mất chuỗi ngày học. Hệ thống chỉ gửi <strong className="text-on-surface">1 lần / ngày</strong> và chỉ khi bạn có streak &gt; 0.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Password & Danger Zone */}
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <Shield className="w-5 h-5 text-primary" />
               <h3 className="font-display text-lg font-bold text-gradient-brand">Bảo Mật</h3>
             </div>
-
             <button
               type="button"
               onClick={() => setShowPasswordForm(prev => !prev)}
@@ -294,7 +394,6 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
               <span className="text-sm font-bold text-on-surface">Đổi Mật Khẩu</span>
               <ChevronDown className={`w-4 h-4 text-outline transition-transform ${showPasswordForm ? 'rotate-180' : ''}`} />
             </button>
-
             {showPasswordForm && (
               <form onSubmit={handleChangePassword} className="space-y-3">
                 <div className="flex flex-col gap-1.5">
@@ -328,7 +427,6 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                 </button>
               </form>
             )}
-
             <div className="pt-4 border-t border-outline-variant/15">
               <button
                 type="button"
@@ -341,14 +439,13 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
           </div>
         </div>
 
-        {/* Right Side: Badges Grid (5/12 wide) */}
+        {/* Right Side: Achievements (5/12) */}
         <div className="lg:col-span-5 space-y-6">
           <div className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-4">
             <div className="flex items-center space-x-2 border-b border-outline-variant/15 pb-2">
               <span className="material-symbols-outlined text-primary">emoji_events</span>
               <h3 className="font-display text-lg font-bold text-gradient-brand">Tủ Thành Tích</h3>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               {achievements.map(ach => (
                 <div
@@ -359,14 +456,8 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                       : 'bg-surface-container-low/10 border-outline-variant/10'
                   }`}
                 >
-                  <div
-                    className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${
-                      ach.secured ? `bg-gradient-to-br ${ach.color} text-white` : 'bg-slate-200 text-slate-400'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-2xl font-bold">
-                      {ach.icon}
-                    </span>
+                  <div className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${ach.secured ? `bg-gradient-to-br ${ach.color} text-white` : 'bg-slate-200 text-slate-400'}`}>
+                    <span className="material-symbols-outlined text-2xl font-bold">{ach.icon}</span>
                     {!ach.secured && (
                       <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-slate-500 border-2 border-white flex items-center justify-center">
                         <span className="material-symbols-outlined text-[11px] text-white leading-none">lock</span>
@@ -379,10 +470,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                     {!ach.secured && ach.progressTarget !== undefined && (
                       <div className="mt-2 space-y-1">
                         <div className="w-full h-1.5 bg-outline-variant/20 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary/60 rounded-full"
-                            style={{ width: `${Math.min((ach.progressCurrent! / ach.progressTarget) * 100, 100)}%` }}
-                          />
+                          <div className="h-full bg-primary/60 rounded-full" style={{ width: `${Math.min((ach.progressCurrent! / ach.progressTarget) * 100, 100)}%` }} />
                         </div>
                         <p className="text-[10px] font-bold text-primary">
                           {ach.progressCurrent}/{ach.progressTarget} {ach.progressUnit}
