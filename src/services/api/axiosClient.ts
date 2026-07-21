@@ -57,7 +57,7 @@ axiosClient.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
     const requestUrl: string = originalRequest?.url || '';
-    const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
+    const isAuthEndpoint = requestUrl.includes('/auth/');
 
     if (status !== 401 || isAuthEndpoint || originalRequest._retry) {
       return Promise.reject(error);
