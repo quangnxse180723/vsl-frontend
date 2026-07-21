@@ -26,8 +26,16 @@ export default function ForgotPasswordView({ onBack, onResetSuccess }: ForgotPas
   const [showPassword, setShowPassword] = useState(false);
   
   const [submitting, setSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(90);
   const [errorMessage, setErrorMessage] = useState('');
   const [errors, setErrors] = useState<{ email?: string; otp?: string; password?: string; confirmPassword?: string }>({});
+
+  React.useEffect(() => {
+    if (step === 2 && timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, timeLeft]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -60,6 +68,7 @@ export default function ForgotPasswordView({ onBack, onResetSuccess }: ForgotPas
     try {
       await authApi.forgotPassword(email);
       setStep(2);
+      setTimeLeft(90);
     } catch (err: any) {
       setErrorMessage(err?.response?.data?.message || err?.message || 'Không thể gửi mã xác nhận. Vui lòng kiểm tra lại email.');
     } finally {
@@ -283,6 +292,31 @@ export default function ForgotPasswordView({ onBack, onResetSuccess }: ForgotPas
                         {!submitting && <CheckCircle2 className="w-4 h-4 relative z-10" />}
                         {submitting && <Loader2 className="w-4 h-4 relative z-10 animate-spin" />}
                       </motion.button>
+                      <div className="mt-4 flex flex-col sm:flex-row justify-center items-center gap-2 text-xs">
+                        {timeLeft > 0 ? (
+                          <span className="text-white/60">Gửi lại mã sau: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
+                        ) : (
+                          <button 
+                            type="button" 
+                            disabled={submitting}
+                            onClick={async () => {
+                              try {
+                                setSubmitting(true);
+                                setErrorMessage('');
+                                await authApi.forgotPassword(email);
+                                setTimeLeft(90);
+                              } catch (err: any) {
+                                setErrorMessage(err?.response?.data?.message || err?.message || 'Lỗi gửi lại mã OTP. Vui lòng thử lại.');
+                              } finally {
+                                setSubmitting(false);
+                              }
+                            }} 
+                            className="text-indigo-400 font-bold hover:text-indigo-300 transition-colors disabled:opacity-50"
+                          >
+                            Gửi lại mã OTP
+                          </button>
+                        )}
+                      </div>
                     </motion.div>
                   </form>
                 </motion.div>

@@ -29,7 +29,15 @@ export default function RegisterView({ onRegister, onSwitchToLogin, onBack }: Re
   const [errorMessage, setErrorMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(90);
   const [errors, setErrors] = useState<{ name: string; username: string; email: string; password: string }>({ name: '', username: '', email: '', password: '' });
+
+  useEffect(() => {
+    if (step === 2 && timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, timeLeft]);
 
   const clearError = (field: keyof typeof errors) => setErrors(p => ({ ...p, [field]: '' }));
 
@@ -50,6 +58,7 @@ export default function RegisterView({ onRegister, onSwitchToLogin, onBack }: Re
     try {
       await authApi.sendRegisterOtp(email, username);
       setStep(2);
+      setTimeLeft(90);
     } catch (err) {
       setErrorMessage(getApiErrorMessage(err, 'Lỗi hệ thống. Vui lòng thử lại.'));
     } finally {
@@ -296,10 +305,33 @@ export default function RegisterView({ onRegister, onSwitchToLogin, onBack }: Re
                     <span className="relative z-10">{submitting ? 'Đang xác thực...' : 'Xác Nhận Đăng Ký'}</span>
                     {submitting && <Loader2 className="w-4 h-4 relative z-10 animate-spin" />}
                   </motion.button>
-                  <div className="mt-4 text-center">
-                    <button type="button" onClick={() => setStep(1)} className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                  <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs">
+                    <button type="button" onClick={() => setStep(1)} className="text-indigo-400 hover:text-indigo-300 transition-colors">
                       Quay lại sửa thông tin
                     </button>
+                    {timeLeft > 0 ? (
+                      <span className="text-white/60">Gửi lại mã sau: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
+                    ) : (
+                      <button 
+                        type="button" 
+                        disabled={submitting}
+                        onClick={async () => {
+                          try {
+                            setSubmitting(true);
+                            setErrorMessage('');
+                            await authApi.sendRegisterOtp(email, username);
+                            setTimeLeft(90);
+                          } catch (err) {
+                            setErrorMessage(getApiErrorMessage(err, 'Lỗi gửi lại mã OTP. Vui lòng thử lại.'));
+                          } finally {
+                            setSubmitting(false);
+                          }
+                        }} 
+                        className="text-indigo-400 font-bold hover:text-indigo-300 transition-colors disabled:opacity-50"
+                      >
+                        Gửi lại mã OTP
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               </form>
