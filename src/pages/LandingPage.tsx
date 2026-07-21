@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { publicApi, PublicStats } from '../services/api/publicApi';
 
 // Starry night mountain background - matches the background in the dashboard banner
 const BANNER_BG = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1600&auto=format&fit=crop&q=80';
@@ -20,16 +21,24 @@ export default function LandingPage({ onGetStarted, onLogin, onNavigate, current
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState<string | null>(null);
 
+  const [dbStats, setDbStats] = useState<PublicStats | null>(null);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
+    
+    // Fetch real stats from DB
+    publicApi.getLandingStats()
+      .then(res => setDbStats(res.data))
+      .catch(console.error);
+      
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const stats = [
-    { value: '5000+', label: 'Học Viên', color: '#6C8EF5' },
-    { value: '98%', label: 'Tỷ Lệ Hài Lòng', color: '#F5A623' },
-    { value: '200+', label: 'Bài Học Tương Tác', color: '#F5A623' },
+    { value: dbStats ? `${dbStats.totalUsers > 0 ? dbStats.totalUsers : 1}+` : '5000+', label: 'Học Viên', color: '#6C8EF5' },
+    { value: dbStats ? `${dbStats.satisfactionRate}%` : '98%', label: 'Tỷ Lệ Hài Lòng', color: '#F5A623' },
+    { value: dbStats ? `${dbStats.totalVocabs > 0 ? dbStats.totalVocabs : 1}+` : '200+', label: 'Từ Vựng Tương Tác', color: '#F5A623' },
   ];
 
   const features = [
