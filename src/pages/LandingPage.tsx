@@ -471,36 +471,70 @@ export default function LandingPage({ onGetStarted, onLogin, onNavigate, current
       </section>
 
       {/* ─── CTA SECTION ─── */}
-      <section style={{ padding: '80px 5%', background: '#0D1120' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <section style={{ padding: '100px 5%', background: '#0D1120', position: 'relative', overflow: 'hidden' }}>
+        {/* Ambient glow behind CTA */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', height: '80%', background: 'radial-gradient(circle, rgba(108,142,245,0.15) 0%, transparent 60%)', zIndex: 0, filter: 'blur(40px)', pointerEvents: 'none' }} />
+        
+        <div style={{ maxWidth: 1000, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{
-            background: 'linear-gradient(135deg, #2d3a8c 0%, #4F3BA9 50%, #3730a3 100%)',
-            borderRadius: 24, padding: 'clamp(40px, 6vw, 64px)',
+            background: 'linear-gradient(135deg, rgba(30, 41, 90, 0.8) 0%, rgba(20, 25, 45, 0.9) 100%)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: 32, padding: 'clamp(48px, 8vw, 80px)',
             textAlign: 'center', position: 'relative', overflow: 'hidden',
-            border: '1px solid rgba(108,142,245,0.2)',
+            border: '1px solid rgba(108,142,245,0.3)',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
           }}>
-            {/* Decorative circles */}
-            <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-            <div style={{ position: 'absolute', bottom: -40, left: -40, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <div style={{ fontSize: 42, marginBottom: 16 }}>🦦</div>
-              <h2 style={{ fontSize: 'clamp(24px, 4vw, 38px)', fontWeight: 800, margin: '0 0 16px', color: '#fff' }}>
-                Sẵn Sàng Bắt Đầu Hành Trình Của Bạn?
+            {/* Animated abstract shapes */}
+            <div style={{ position: 'absolute', top: -100, right: -50, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(108,142,245,0.3) 0%, transparent 70%)', filter: 'blur(30px)' }} />
+            <div style={{ position: 'absolute', bottom: -80, left: -60, width: 250, height: 250, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,108,245,0.25) 0%, transparent 70%)', filter: 'blur(30px)' }} />
+            
+            {/* Grid pattern overlay */}
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px', opacity: 0.5 }} />
+
+            <div style={{ position: 'relative', zIndex: 2 }}>
+              <div style={{ 
+                display: 'inline-flex', alignItems: 'center', gap: 8, 
+                padding: '8px 16px', background: 'rgba(108,142,245,0.15)', border: '1px solid rgba(108,142,245,0.3)', 
+                borderRadius: 100, marginBottom: 24 
+              }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#6C8EF5' }}>school</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#6C8EF5', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tham gia ngay hôm nay</span>
+              </div>
+              
+              <h2 style={{ fontSize: 'clamp(28px, 5vw, 46px)', fontWeight: 800, margin: '0 0 20px', color: '#fff', lineHeight: 1.2 }}>
+                Bắt Đầu Hành Trình <br/>
+                <span style={{ background: 'linear-gradient(135deg, #6C8EF5 0%, #A86CF5 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Chinh Phục Ngôn Ngữ Ký Hiệu</span>
               </h2>
-              <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.65)', marginBottom: 36, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.7 }}>
-                Tham gia miễn phí hôm nay và khám phá cách SignMentor có thể giúp bạn giao tiếp không giới hạn.
+              
+              <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.7)', marginBottom: 40, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
+                Trải nghiệm lộ trình học bài bản, công nghệ AI nhận diện độ chính xác cao và dễ dàng theo dõi tiến độ mỗi ngày.
               </p>
+              
               <button
                 onClick={onGetStarted}
                 style={{
-                  background: 'rgba(255,255,255,0.95)', color: '#3730a3',
-                  border: 'none', fontWeight: 800, fontSize: 16,
-                  padding: '14px 36px', borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
-                  boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+                  background: 'linear-gradient(135deg, #6C8EF5 0%, #4B6BF5 100%)', color: '#fff',
+                  border: 'none', fontWeight: 800, fontSize: 18,
+                  padding: '16px 48px', borderRadius: 16, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 8px 32px rgba(108,142,245,0.3)',
+                  display: 'inline-flex', alignItems: 'center', gap: 12
                 }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.background = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.background = 'rgba(255,255,255,0.95)'; }}
-              >Đăng Ký Miễn Phí</button>
+                onMouseEnter={e => { 
+                  e.currentTarget.style.transform = 'translateY(-3px)'; 
+                  e.currentTarget.style.boxShadow = '0 12px 40px rgba(108,142,245,0.4)';
+                  const icon = e.currentTarget.querySelector('span');
+                  if(icon) icon.style.transform = 'translateX(4px)';
+                }}
+                onMouseLeave={e => { 
+                  e.currentTarget.style.transform = 'none'; 
+                  e.currentTarget.style.boxShadow = '0 8px 32px rgba(108,142,245,0.3)';
+                  const icon = e.currentTarget.querySelector('span');
+                  if(icon) icon.style.transform = 'none';
+                }}
+              >
+                Bắt Đầu Miễn Phí
+                <span className="material-symbols-outlined" style={{ transition: 'transform 0.3s', fontSize: 20 }}>arrow_forward</span>
+              </button>
             </div>
           </div>
         </div>
