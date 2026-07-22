@@ -37,7 +37,6 @@ export default function LandingPage({ onGetStarted, onLogin, onNavigate, current
 
   const stats = [
     { value: dbStats ? `${dbStats.totalUsers > 0 ? dbStats.totalUsers : 1}+` : '5000+', label: 'Học Viên', color: '#6C8EF5' },
-    { value: dbStats ? `${dbStats.satisfactionRate}%` : '98%', label: 'Tỷ Lệ Hài Lòng', color: '#F5A623' },
     { value: dbStats ? `${dbStats.totalVocabs > 0 ? dbStats.totalVocabs : 1}+` : '200+', label: 'Từ Vựng Tương Tác', color: '#F5A623' },
   ];
 
