@@ -325,45 +325,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   </div>
                 </div>
 
-                {/* Email preview mockup */}
-                <div className="rounded-xl border border-outline-variant/25 overflow-hidden">
-                  <div className="px-3 py-2 bg-surface-container-high border-b border-outline-variant/20 flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
-                    </div>
-                    <span className="text-[10px] font-bold text-outline ml-1">Xem trước email nhắc nhở</span>
-                  </div>
-                  <div className="p-4 bg-gradient-to-br from-slate-900 to-indigo-950">
-                    {/* Email subject bar */}
-                    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10">
-                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
-                        <span className="text-sm">🔥</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-extrabold text-white truncate">🔥 Chuỗi 7 ngày sắp bị gãy! - SignMentor</p>
-                        <p className="text-[10px] text-white/50">noreply@sighmentor.click → {email || 'bạn'}</p>
-                      </div>
-                    </div>
-                    {/* Email body preview */}
-                    <p className="text-[11px] text-white/80 leading-relaxed mb-2">
-                      Xin chào <span className="text-purple-300 font-bold">{fullName || 'bạn'}</span>,
-                    </p>
-                    <p className="text-[11px] text-white/60 leading-relaxed mb-3">
-                      Bạn có chuỗi học tập <span className="text-amber-400 font-bold">7 ngày</span> liên tiếp rất ấn tượng! Nhưng hôm nay chưa luyện tập và còn ít giờ để giữ chuỗi này.
-                    </p>
-                    <div className="text-center mb-2">
-                      <span className="text-4xl font-black text-amber-400">7</span>
-                      <p className="text-[10px] text-white/40 uppercase tracking-widest">Ngày liên tiếp</p>
-                    </div>
-                    <div className="mt-3 text-center">
-                      <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg text-xs font-bold text-white shadow-lg">
-                        📚 Luyện tập ngay
-                      </span>
-                    </div>
-                  </div>
-                </div>
+
               </div>
             )}
 
