@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, User, ArrowLeft, Sparkles, UserPlus, Loader2, Eye, EyeOff } from 'lucide-react';
 import { validateFullName, validateUsername, validateEmail, validatePassword, isFormValid } from '../utils/validation';
