@@ -343,7 +343,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-extrabold text-white truncate">🔥 Chuỗi 7 ngày sắp bị gãy! - SignMentor</p>
-                        <p className="text-[10px] text-white/50">noreply@signmentor.click → {email || 'bạn'}</p>
+                        <p className="text-[10px] text-white/50">noreply@sighmentor.click → {email || 'bạn'}</p>
                       </div>
                     </div>
                     {/* Email body preview */}
