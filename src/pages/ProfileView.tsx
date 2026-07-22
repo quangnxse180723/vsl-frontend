@@ -310,17 +310,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
               </div>
             )}
 
-            {/* When DISABLED: show info hint */}
-            {!emailNotify && profileLoaded && (
-              <div className="px-6 pb-5">
-                <div className="flex items-start gap-2.5 p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/20">
-                  <BellOff className="w-4 h-4 text-outline shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-outline leading-relaxed">
-                    Bật thông báo để nhận email nhắc nhở lúc <strong className="text-on-surface">19h giờ VN</strong> khi bạn sắp mất chuỗi ngày học. Hệ thống chỉ gửi <strong className="text-on-surface">1 lần / ngày</strong> và chỉ khi bạn có streak &gt; 0.
-                  </p>
-                </div>
-              </div>
-            )}
+
           </div>
 
           {/* Password & Danger Zone */}
