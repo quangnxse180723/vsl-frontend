@@ -306,26 +306,7 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
             {/* When ENABLED: show details + email preview */}
             {emailNotify && (
               <div className="px-6 pb-6 space-y-4 border-t border-outline-variant/10">
-                {/* Info grid */}
-                <div className="grid grid-cols-3 gap-3 pt-4">
-                  <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
-                    <Clock className="w-4 h-4 text-primary mx-auto" />
-                    <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Giờ gửi</p>
-                    <p className="text-xs font-extrabold text-on-surface">Sau khi học</p>
-                  </div>
-                  <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
-                    <Flame className="w-4 h-4 text-orange-500 mx-auto" />
-                    <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Điều kiện</p>
-                    <p className="text-xs font-extrabold text-on-surface">Vừa hoàn thành</p>
-                  </div>
-                  <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
-                    <Mail className="w-4 h-4 text-blue-500 mx-auto" />
-                    <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Tần suất</p>
-                    <p className="text-xs font-extrabold text-on-surface">1 lần / ngày</p>
-                  </div>
-                </div>
-
-
+                {/* Email notify features enabled... */}
               </div>
             )}
 
