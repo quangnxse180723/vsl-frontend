@@ -311,12 +311,12 @@ export default function ProfileView({ currentUser, achievements, onLogout, onUpd
                   <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
                     <Clock className="w-4 h-4 text-primary mx-auto" />
                     <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Giờ gửi</p>
-                    <p className="text-xs font-extrabold text-on-surface">19:00 VN</p>
+                    <p className="text-xs font-extrabold text-on-surface">Sau khi học</p>
                   </div>
                   <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
                     <Flame className="w-4 h-4 text-orange-500 mx-auto" />
                     <p className="text-[10px] text-outline uppercase tracking-wide font-bold">Điều kiện</p>
-                    <p className="text-xs font-extrabold text-on-surface">Streak &gt; 0</p>
+                    <p className="text-xs font-extrabold text-on-surface">Vừa hoàn thành</p>
                   </div>
                   <div className="flex flex-col gap-1.5 p-3 bg-surface-container-low rounded-xl border border-outline-variant/20 text-center">
                     <Mail className="w-4 h-4 text-blue-500 mx-auto" />
