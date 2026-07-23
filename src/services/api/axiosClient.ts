@@ -41,11 +41,20 @@ function flushQueue(error: unknown, token: string | null) {
 }
 
 function forceLogout() {
+  // Chi coi la "dang xuat" khi user THUC SU tung co phien (token vua bi vo hieu).
+  const hadSession = !!localStorage.getItem('accessToken') || !!localStorage.getItem('refreshToken');
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   // App.tsx only checks localStorage for a token on mount, so a full reload
   // is the simplest way to drop the user back to the login screen.
-  window.location.reload();
+  //
+  // NHUNG chi reload khi truoc do CO phien dang nhap. Neu von khong co token
+  // (dang o trang cong khai, chua dang nhap) thi mot 401 tu endpoint public
+  // KHONG phai ly do de reload -> neu van reload se tao vong lap reload vo tan
+  // (landing page goi /api/public/stats -> 401 -> reload -> goi lai -> ...).
+  if (hadSession) {
+    window.location.reload();
+  }
 }
 
 // Add a response interceptor to handle errors globally

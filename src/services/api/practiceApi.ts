@@ -38,10 +38,16 @@ export const practiceApi = {
     return axiosClient.get('/practice/stats');
   },
 
-  evaluate: (videoFile: File, expectedId: number): Promise<ApiResponse<EvaluationResponse>> => {
+  // startFrac/endFrac (0..1): cua so dong tac frontend do duoc; backend chi lay 16
+  // frame TRONG khoang nay -> cat sat dong tac cho MViTv2 chinh xac hon.
+  evaluate: (videoFile: File, expectedId: number, startFrac?: number, endFrac?: number): Promise<ApiResponse<EvaluationResponse>> => {
     const formData = new FormData();
     formData.append('video', videoFile);
     formData.append('expectedId', expectedId.toString());
+    if (startFrac != null && endFrac != null) {
+      formData.append('startFrac', startFrac.toFixed(4));
+      formData.append('endFrac', endFrac.toFixed(4));
+    }
 
     // The AI model can take well over a minute on a cold start (first inference
     // after the backend restarts). Without an explicit timeout, axios has none

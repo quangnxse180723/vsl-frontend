@@ -3,6 +3,8 @@ import { Vocabulary } from '../types';
 import { practiceApi } from '../services/api/practiceApi';
 import { Camera, CameraOff, Play, ShieldCheck, HelpCircle, RefreshCw, AlertCircle, Sparkles, X } from 'lucide-react';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
+import HandFeedback from '../components/HandFeedback';
+import { analyzeHands, type HandFeedback as HandFeedbackData } from '../handAnalysis';
 
 interface AIPracticeViewProps {
   vocabularyList: Vocabulary[];
@@ -10,7 +12,47 @@ interface AIPracticeViewProps {
   onRecordResult: (signName: string, score: number) => void;
 }
 
-export default function AIPracticeView({ 
+// Phase B: tu chuoi motion sample khi quay, tim cua so [startFrac, endFrac] noi
+// co CHUYEN DONG chinh (dong tac that), bo doan tay dung yen dau/cuoi. Tra ve
+// theo ti le thoi gian cua clip de backend lay 16 frame trong khoang do.
+function computeActiveWindow(
+  samples: { t: number; x: number; y: number; s: number }[],
+  recordStart: number,
+  recordEnd: number,
+): { startFrac: number; endFrac: number } {
+  const FULL = { startFrac: 0, endFrac: 1 };
+  const dur = recordEnd - recordStart;
+  if (samples.length < 5 || dur <= 0) return FULL;
+
+  // Chuyen dong moi sample = dich tam bbox + doi kich thuoc so voi sample truoc.
+  const motion = [0];
+  for (let i = 1; i < samples.length; i++) {
+    const dx = samples[i].x - samples[i - 1].x;
+    const dy = samples[i].y - samples[i - 1].y;
+    const ds = Math.abs(samples[i].s - samples[i - 1].s);
+    motion.push(Math.hypot(dx, dy) + ds);
+  }
+  const total = motion.reduce((a, b) => a + b, 0);
+  if (total < 1e-3) return FULL; // gan nhu tinh -> dung ca clip
+
+  const cum: number[] = [];
+  let acc = 0;
+  for (const m of motion) { acc += m; cum.push(acc); }
+  const lo = total * 0.1, hi = total * 0.9;
+  let a = 0, b = samples.length - 1;
+  for (let i = 0; i < cum.length; i++) if (cum[i] >= lo) { a = i; break; }
+  for (let i = cum.length - 1; i >= 0; i--) if (cum[i] <= hi) { b = i; break; }
+
+  // Padding 8% moi dau de khong cat cut dau/cuoi dong tac.
+  let startFrac = (samples[a].t - recordStart) / dur - 0.08;
+  let endFrac = (samples[b].t - recordStart) / dur + 0.08;
+  startFrac = Math.max(0, startFrac);
+  endFrac = Math.min(1, endFrac);
+  if (endFrac - startFrac < 0.2) return FULL; // cua so qua hep -> dung ca clip
+  return { startFrac, endFrac };
+}
+
+export default function AIPracticeView({
   vocabularyList, 
   initialSelectedSignName,
   onRecordResult
@@ -39,6 +81,11 @@ export default function AIPracticeView({
   // until the user starts a new scan - previously it vanished the instant progressWidth hit 100.
   const [resultVisible, setResultVisible] = useState(false);
   const [lastAttemptFailed, setLastAttemptFailed] = useState(false);
+
+  // Nhan xet tu the tay - phan tich OFFLINE tren clip da ghi (MediaPipe
+  // HandLandmarker), doc lap voi cham diem MViTv2 o backend.
+  const [handFeedback, setHandFeedback] = useState<HandFeedbackData | null>(null);
+  const [handAnalyzing, setHandAnalyzing] = useState(false);
 
   // Reference sample video lightbox - opens a large centered player when the
   // reference thumbnail is clicked, instead of just showing a static image.
@@ -83,6 +130,13 @@ export default function AIPracticeView({
   // a brief missed detection doesn't instantly snap back to full frame.
   const smoothedCropRef = useRef<{ cx: number; cy: number; side: number } | null>(null);
   const framesSincePoseSeenRef = useRef(0);
+
+  // Theo doi chuyen dong khi quay de CAT SAT dong tac cho MViTv2 (Phase B).
+  // Moi frame luu {t, x, y, s} = thoi diem + tam bbox tay + kich thuoc bbox.
+  // Sau khi quay xong, tim cua so [startFrac, endFrac] noi co chuyen dong chinh.
+  const isRecordingRef = useRef(false);
+  const recordStartRef = useRef(0);
+  const motionSamplesRef = useRef<{ t: number; x: number; y: number; s: number }[]>([]);
 
   // Update selected sign when prop changes
   useEffect(() => {
@@ -309,6 +363,12 @@ export default function AIPracticeView({
             // Square side = larger bbox dimension + padding, capped to the frame.
             const side = Math.min(Math.max(boxW, boxH) * (1 + 2 * CROP_PADDING), outSide);
 
+            // Phase B: khi dang quay, ghi lai tam + kich thuoc bbox tay theo thoi gian
+            // de sau do tim cua so dong tac (cat sat cho MViTv2).
+            if (isRecordingRef.current) {
+              motionSamplesRef.current.push({ t: now, x: cx, y: cy, s: side });
+            }
+
             const target = { cx, cy, side };
             const prev = smoothedCropRef.current;
             smoothedCropRef.current = prev ? {
@@ -419,7 +479,10 @@ export default function AIPracticeView({
     setEvalStatus(null);
     setProgressWidth(0);
     setCalibrationStep('Sẵn sàng hiệu chỉnh');
+    setHandFeedback(null);
+    setHandAnalyzing(false);
   };
+
 
   const handleScanAndEvaluate = () => {
     if (isDetecting || isRecording) return;
@@ -452,6 +515,8 @@ export default function AIPracticeView({
       };
       
       mediaRecorder.onstop = async () => {
+        isRecordingRef.current = false;
+        const recordEnd = performance.now();
         setIsRecording(false);
         setIsDetecting(true);
         setCalibrationStep('Đang tải lên và chấm điểm video...');
@@ -460,8 +525,26 @@ export default function AIPracticeView({
         const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
         const file = new File([blob], "practice.webm", { type: 'video/webm' });
 
+        // Phase B: tim cua so dong tac tu motion da ghi -> gui cho backend cat sat.
+        const { startFrac, endFrac } = computeActiveWindow(
+          motionSamplesRef.current, recordStartRef.current, recordEnd,
+        );
+
+        // Phan tich tu the tay chay SONG SONG, khong chan luong cham diem MViTv2.
+        // Ket qua hien khi xong; loi khong anh huong ket qua chinh.
+        setHandFeedback(null);
+        setHandAnalyzing(true);
+        analyzeHands({
+          clipBlob: blob,
+          classId: selectedSign.expectedId,
+          sampleVideoUrl: selectedSign.videoUrl,
+        })
+          .then(setHandFeedback)
+          .catch(() => setHandFeedback(null))
+          .finally(() => setHandAnalyzing(false));
+
         try {
-          const res = await practiceApi.evaluate(file, selectedSign.expectedId);
+          const res = await practiceApi.evaluate(file, selectedSign.expectedId, startFrac, endFrac);
           const evaluation = res.data;
 
           setOverallScore(Math.round(evaluation.confidence));
@@ -489,6 +572,10 @@ export default function AIPracticeView({
         }
       };
 
+      // Phase B: bat dau ghi motion de cat sat dong tac.
+      motionSamplesRef.current = [];
+      recordStartRef.current = performance.now();
+      isRecordingRef.current = true;
       mediaRecorder.start();
 
       let timeLeft = 5;
@@ -719,7 +806,7 @@ export default function AIPracticeView({
             </p>
           )}
 
-          {/* Diagnostics Grid - so lieu THAT do model tra ve */}
+          {/* Diagnostics Grid - DIEM CHINH = MViTv2 (model do an); tay la coach phu ben duoi */}
           {(() => {
             const waiting = 'bg-slate-100 text-slate-500';
             const scoreCls = overallScore == null ? waiting
@@ -740,10 +827,10 @@ export default function AIPracticeView({
               : waiting;
             return (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Do chinh xac (confidence) */}
-                <div className="p-4 rounded-xl border border-outline-variant/30 flex justify-between items-center bg-surface-container-lowest shadow-sm">
+                {/* CHINH: MViTv2 - do tin nhan dien */}
+                <div className="p-4 rounded-xl border border-primary/40 flex justify-between items-center bg-primary/5 shadow-sm">
                   <div>
-                    <p className="text-[10px] font-bold uppercase text-outline">Độ chính xác</p>
+                    <p className="text-[10px] font-bold uppercase text-primary">● Điểm chính (mô hình AI)</p>
                     <p className="text-sm font-bold text-on-surface">Mức khớp ký hiệu</p>
                   </div>
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${scoreCls}`}>
@@ -774,20 +861,9 @@ export default function AIPracticeView({
             );
           })()}
 
-          {/* Interactive Guidelines Feedback prompt */}
-          <div className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/30 flex items-start gap-3">
-            <span className="material-symbols-outlined text-primary text-2xl shrink-0 mt-0.5">feedback</span>
-            <div className="space-y-1">
-              <h5 className="font-label-bold text-xs text-on-surface">Gợi Ý Từ AI Coach</h5>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                {overallScore === null
-                  ? "Bật camera và nhấn \"Hiệu Chỉnh & Quét\" để nhận phản hồi AI theo thời gian thực."
-                  : overallScore < 90
-                    ? "Nghiêng lòng bàn tay sang trái một chút. Mạng nơ-ron cần độ tương phản ánh sáng tốt hơn ở khớp ngón trỏ."
-                    : "Tư thế xuất sắc! Các ngón tay đang duỗi phẳng, lòng bàn tay hướng ra ngoài, khớp chính xác với cấu hình ký hiệu chuẩn."}
-              </p>
-            </div>
-          </div>
+          {/* Nhan xet tu the tay - du lieu THAT tu MediaPipe HandLandmarker,
+              thay cho o goi y hardcode truoc day. */}
+          <HandFeedback feedback={handFeedback} loading={handAnalyzing} />
         </div>
 
         {/* Right Column: Reference guidelines & configuration (4/12 wide) */}
