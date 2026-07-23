@@ -42,6 +42,8 @@ export interface AdminBlogResponse {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
+  followedAuthor: boolean;
+  friendWithAuthor: boolean;
   // Chi co khi status = REMOVED (bai bi admin go) - chi tac gia thay
   deletionReason: string | null;
 }
@@ -52,13 +54,83 @@ export interface BlogCommentResponse {
   userId: number | null;
   userName: string | null;
   userAvatar: string | null;
+  mentionedUserId: number | null;
+  mentionedUserName: string | null;
   content: string;
   createdAt: string;
+  replies?: BlogReplyResponse[];
+  replyCount: number;
+  likeCount: number;
+  likedByMe: boolean;
+}
+
+export interface BlogReplyResponse {
+  id: number;
+  commentId: number;
+  userId: number | null;
+  userName: string | null;
+  userAvatar: string | null;
+  mentionedUserId: number | null;
+  mentionedUserName: string | null;
+  content: string;
+  createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 export interface LikeToggleResponse {
   liked: boolean;
   likeCount: number;
+}
+
+export interface BlogShareResponse {
+  shareCount: number;
+  blogUrl: string;
+  shareType: 'COPY_URL' | 'PROFILE';
+  recipientUserId: number | null;
+  recipientName: string | null;
+}
+
+export interface BlogUserSummaryResponse {
+  userId: number;
+  username: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  followerCount: number;
+  followingCount: number;
+  followedByMe: boolean;
+  followsMe: boolean;
+  friend: boolean;
+}
+
+export interface FollowStatusResponse {
+  targetUserId: number;
+  followedByMe: boolean;
+  followsMe: boolean;
+  friend: boolean;
+  followerCount: number;
+  followingCount: number;
+}
+
+export interface BlogSearchResponse {
+  blogs: PageResponse<AdminBlogResponse>;
+  users: PageResponse<BlogUserSummaryResponse>;
+}
+
+export interface BlogNotificationResponse {
+  id: number;
+  type: 'MENTION' | 'SHARE';
+  read: boolean;
+  message: string;
+  actorId: number | null;
+  actorName: string | null;
+  actorAvatar: string | null;
+  recipientId: number | null;
+  blogId: number | null;
+  blogTitle: string | null;
+  commentId: number | null;
+  replyId: number | null;
+  createdAt: string;
 }
 
 export interface LikeUserResponse {
