@@ -1,5 +1,5 @@
 import axiosClient from './axiosClient';
-import { ApiResponse } from '../../types/api';
+import { ApiResponse } from './authApi';
 
 export interface PublicStats {
   totalUsers: number;
