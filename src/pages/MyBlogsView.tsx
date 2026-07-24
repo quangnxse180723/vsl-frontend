@@ -18,6 +18,15 @@ export default function MyBlogsView() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');   // ly do AI tu choi bai (tao)
 
+  // Xem noi dung bai da bi go (mo/dong tung the)
+  const [expandedRemoved, setExpandedRemoved] = useState<Set<number>>(new Set());
+  const toggleRemoved = (id: number) =>
+    setExpandedRemoved(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
   // Edit blog
   const [editingBlog, setEditingBlog] = useState<AdminBlogResponse | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -98,16 +107,15 @@ export default function MyBlogsView() {
     }
   };
 
-  const handleDelete = async (id: number, isRemoved = false) => {
-    const msg = isRemoved
-      ? 'Xóa thông báo bài bị gỡ này khỏi trang của bạn?'
-      : 'Xác nhận xóa bài viết này?';
-    if (!window.confirm(msg)) return;
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Xác nhận xóa bài viết này?')) return;
     try {
       await userBlogApi.deleteBlog(id);
       await loadBlogs();
     } catch (err) {
-      alert('Không thể xóa. Vui lòng thử lại.');
+      // Hien nguyen van thong bao tu BE: bai dang bi to cao thi khong xoa duoc va
+      // nguoi dung can biet cach xu ly (chuyen ve ban nhap), khong phai "thu lai".
+      alert(getApiErrorMessage(err, 'Không thể xóa. Vui lòng thử lại.'));
     }
   };
 
@@ -291,17 +299,32 @@ export default function MyBlogsView() {
                       <p className="text-[11px] font-bold uppercase tracking-wide text-red-600 mb-1">Lý do từ quản trị viên</p>
                       <p className="text-sm text-on-surface leading-relaxed">{blog.deletionReason || 'Không có lý do cụ thể.'}</p>
                     </div>
-                    <div className="flex items-center justify-between pt-4 mt-3 border-t border-red-200/60">
+
+                    {/* Tac gia van xem lai duoc noi dung goc cua bai da bi go */}
+                    <button
+                      onClick={() => toggleRemoved(blog.id)}
+                      className="mt-3 self-start flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 rounded-lg transition-colors"
+                    >
+                      {expandedRemoved.has(blog.id)
+                        ? <><EyeOff className="w-3.5 h-3.5" /> Ẩn nội dung</>
+                        : <><Eye className="w-3.5 h-3.5" /> Xem nội dung bài viết</>}
+                    </button>
+
+                    {expandedRemoved.has(blog.id) && (
+                      <div className="mt-2 bg-white/70 border border-red-100 rounded-xl p-3">
+                        <p className="text-sm font-bold text-on-surface mb-2">{blog.title}</p>
+                        <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">{blog.content}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3 pt-4 mt-3 border-t border-red-200/60">
                       <span className="text-[11px] text-outline font-medium">
                         {new Date(blog.createdAt).toLocaleDateString('vi-VN')}
                       </span>
-                      <button
-                        onClick={() => handleDelete(blog.id, true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                        title="Xóa thông báo này khỏi trang của bạn"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Xóa thông báo
-                      </button>
+                      {/* Bai bi go duoc giu lai lam can cu kiem duyet nen khong the xoa. */}
+                      <span className="text-[11px] text-outline/80 text-right leading-snug">
+                        Bài bị gỡ được lưu lại để đối chiếu, không thể xóa.
+                      </span>
                     </div>
                   </div>
                 </div>

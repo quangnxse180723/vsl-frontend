@@ -157,6 +157,19 @@ export interface BlogReportResponse {
   blogAuthorName: string | null;
 }
 
+export interface VocabSuggestionResponse {
+  id: number;
+  word: string;
+  description: string | null;
+  status: 'PENDING' | 'REVIEWED';
+  createdAt: string;
+  reviewedAt: string | null;
+  categoryId: number;
+  categoryName: string;
+  requesterId: number;
+  requesterName: string;
+}
+
 export interface CreateBlogPayload {
   title: string;
   content: string;
@@ -303,5 +316,18 @@ export const adminApi = {
   // Go bai bi to cao kem ly do -> bai chuyen REMOVED, tac gia thay ly do
   removeBlogWithReason: (blogId: number, reason: string): Promise<string> => {
     return axiosClient.post(`/admin/reports/blogs/${blogId}/remove`, { reason });
+  },
+
+  // ─── Vocabulary suggestions (de xuat tu vung tu nguoi dung) ───────────────
+  getVocabSuggestions: (page = 0, size = 50): Promise<PageResponse<VocabSuggestionResponse>> => {
+    return axiosClient.get(`/admin/vocabulary-suggestions?page=${page}&size=${size}`);
+  },
+
+  getVocabSuggestionPendingCount: (): Promise<number> => {
+    return axiosClient.get('/admin/vocabulary-suggestions/pending-count');
+  },
+
+  markVocabSuggestionReviewed: (id: number): Promise<string> => {
+    return axiosClient.put(`/admin/vocabulary-suggestions/${id}/reviewed`);
   },
 };
