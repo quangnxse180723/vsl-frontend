@@ -20,6 +20,7 @@ import AdminView from './pages/AdminView';
 import ProfileView from './pages/ProfileView';
 import BlogView from './pages/BlogView';
 import MyBlogsView from './pages/MyBlogsView';
+import RequestVocabularyView from './pages/RequestVocabularyView';
 import LandingPage from './pages/LandingPage';
 
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
@@ -105,7 +106,7 @@ export default function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin' | 'blog' | 'my-blogs'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'lessons' | 'practice' | 'profile' | 'admin' | 'blog' | 'my-blogs' | 'request-vocab'>('dashboard');
   const [showLanding, setShowLanding] = useState(true);
 
   // Drill-down Detail Lesson State
@@ -597,7 +598,7 @@ export default function App() {
       )}
 
       {/* Side Navigation Rail (Left Rail) */}
-      <aside className="w-full md:w-64 bg-surface-container-lowest shrink-0 border-b md:border-b-0 md:border-r border-outline-variant/30 px-5 py-6 flex flex-col justify-between">
+      <aside className="w-full md:w-64 md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-surface-container-lowest shrink-0 border-b md:border-b-0 md:border-r border-outline-variant/30 px-5 py-6 flex flex-col justify-between">
         <div className="space-y-8">
           {/* Brand Logo - click to go to landing page */}
           <button
@@ -710,6 +711,22 @@ export default function App() {
               <span className="material-symbols-outlined text-lg">edit_document</span>
               <span className="md:inline">Bài Viết Của Tôi</span>
             </button>
+
+            {/* Request vocabulary link */}
+            <button
+              onClick={() => {
+                setCurrentTab('request-vocab');
+                setSelectedLessonId(null);
+              }}
+              className={`w-full text-left px-3.5 py-3 rounded-xl flex items-center gap-3 transition-colors shrink-0 text-sm font-bold ${
+                currentTab === 'request-vocab'
+                  ? 'bg-primary-container/10 text-primary'
+                  : 'text-outline hover:bg-surface-container-low hover:text-on-surface'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">bookmark_add</span>
+              <span className="md:inline">Đề Xuất Từ Vựng</span>
+            </button>
           </nav>
         </div>
 
@@ -803,6 +820,10 @@ export default function App() {
 
             {currentTab === 'my-blogs' && (
               <MyBlogsView />
+            )}
+
+            {currentTab === 'request-vocab' && (
+              <RequestVocabularyView />
             )}
           </>
         )}

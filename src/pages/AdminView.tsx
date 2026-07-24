@@ -8,6 +8,7 @@ import {
   BlogReportResponse,
   BlogCommentResponse,
   LikeUserResponse,
+  VocabSuggestionResponse,
 } from "../services/api/adminApi";
 import {
   analyticsApi,
@@ -171,6 +172,7 @@ export default function AdminView({
     | "vocabulary"
     | "blog"
     | "reports"
+    | "suggestions"
   >("overview");
 
   // ─── Reports (to cao bai blog) ───
@@ -210,6 +212,39 @@ export default function AdminView({
   useEffect(() => {
     loadReports();
   }, []);
+
+  // ─── Vocabulary suggestions (de xuat tu vung tu nguoi dung) ───
+  const [suggestions, setSuggestions] = useState<VocabSuggestionResponse[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [pendingSuggestionCount, setPendingSuggestionCount] = useState(0);
+
+  const loadSuggestions = async () => {
+    setSuggestionsLoading(true);
+    try {
+      const res = await adminApi.getVocabSuggestions(0, 100);
+      setSuggestions(res.content);
+      setPendingSuggestionCount(
+        res.content.filter((s) => s.status === "PENDING").length,
+      );
+    } catch (err) {
+      console.error("Failed to load vocabulary suggestions", err);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSuggestions();
+  }, []);
+
+  const handleMarkSuggestionReviewed = async (id: number) => {
+    try {
+      await adminApi.markVocabSuggestionReviewed(id);
+      await loadSuggestions();
+    } catch (err) {
+      setNotification("Không thể cập nhật đề xuất. Vui lòng thử lại.");
+    }
+  };
 
   const handleResolveReport = async (reportId: number) => {
     try {
@@ -737,12 +772,13 @@ export default function AdminView({
     { key: "vocabulary", label: "Từ Vựng", icon: "menu_book" },
     { key: "blog", label: "Blog", icon: "article" },
     { key: "reports", label: "Báo Cáo", icon: "flag" },
+    { key: "suggestions", label: "Đề Xuất Từ Vựng", icon: "bookmark_add" },
   ] as const;
 
   return (
     <div className="bg-mesh min-h-screen flex flex-col md:flex-row antialiased font-sans text-on-surface">
       {/* Admin vertical sidebar - tach biet hoan toan voi sidebar cua nguoi dung */}
-      <aside className="w-full md:w-64 bg-surface-container-lowest shrink-0 border-b md:border-b-0 md:border-r border-outline-variant/30 px-5 py-6 flex flex-col justify-between">
+      <aside className="w-full md:w-64 md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-surface-container-lowest shrink-0 border-b md:border-b-0 md:border-r border-outline-variant/30 px-5 py-6 flex flex-col justify-between">
         <div className="space-y-8">
           {/* Brand */}
           <div className="flex items-center gap-2 px-2">
@@ -784,6 +820,11 @@ export default function AdminView({
                 {tab.key === "reports" && pendingReportCount > 0 && (
                   <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-extrabold flex items-center justify-center">
                     {pendingReportCount}
+                  </span>
+                )}
+                {tab.key === "suggestions" && pendingSuggestionCount > 0 && (
+                  <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-extrabold flex items-center justify-center">
+                    {pendingSuggestionCount}
                   </span>
                 )}
               </button>
@@ -2652,6 +2693,101 @@ export default function AdminView({
                           </td>
                         </tr>
                       )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {adminSection === "suggestions" && (
+            <section className="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/30 elevation-1 space-y-5">
+              <header className="flex justify-between items-center pb-2 border-b border-outline-variant/15">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <h3 className="font-display text-lg font-bold text-gradient-brand">
+                    Đề Xuất Từ Vựng
+                  </h3>
+                  <span className="text-xs text-outline ml-1">
+                    ({suggestions.length} đề xuất · {pendingSuggestionCount} chờ xem)
+                  </span>
+                </div>
+                <button
+                  onClick={loadSuggestions}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-outline hover:text-primary rounded-lg hover:bg-surface-container-low transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Tải lại
+                </button>
+              </header>
+
+              {suggestionsLoading ? (
+                <div className="flex items-center justify-center py-10 text-outline">
+                  <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Đang tải...
+                </div>
+              ) : suggestions.length === 0 ? (
+                <div className="text-center py-10 text-outline text-sm">
+                  Chưa có đề xuất từ vựng nào.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-outline-variant/20">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-surface-container-low/60 text-outline uppercase tracking-wider">
+                        <th className="py-3 px-4 text-left font-semibold">Từ vựng</th>
+                        <th className="py-3 px-4 text-left font-semibold">Danh mục</th>
+                        <th className="py-3 px-4 text-left font-semibold">Mô tả</th>
+                        <th className="py-3 px-4 text-left font-semibold">Người đề xuất</th>
+                        <th className="py-3 px-4 text-left font-semibold">Ngày gửi</th>
+                        <th className="py-3 px-4 text-left font-semibold">Trạng thái</th>
+                        <th className="py-3 px-4 text-center font-semibold">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/20">
+                      {suggestions.map((s) => (
+                        <tr
+                          key={s.id}
+                          className="hover:bg-surface-container-low/40 transition-colors"
+                        >
+                          <td className="py-3 px-4 font-semibold text-on-surface">
+                            {s.word}
+                          </td>
+                          <td className="py-3 px-4 text-outline">{s.categoryName}</td>
+                          <td
+                            className="py-3 px-4 text-on-surface truncate max-w-[220px]"
+                            title={s.description || ""}
+                          >
+                            {s.description || "—"}
+                          </td>
+                          <td className="py-3 px-4 text-outline">{s.requesterName}</td>
+                          <td className="py-3 px-4 text-outline whitespace-nowrap">
+                            {new Date(s.createdAt).toLocaleDateString("vi-VN")}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold text-[10px] ${
+                                s.status === "PENDING"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              {s.status === "PENDING" ? "Chờ xem" : "Đã xem"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center justify-center gap-2">
+                              {s.status === "PENDING" && (
+                                <button
+                                  onClick={() => handleMarkSuggestionReviewed(s.id)}
+                                  className="p-1.5 hover:bg-green-50 text-outline hover:text-green-600 rounded-lg transition-colors"
+                                  title="Đánh dấu đã xem"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
