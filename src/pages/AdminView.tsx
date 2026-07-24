@@ -762,6 +762,10 @@ export default function AdminView({
       title: "Báo Cáo Vi Phạm",
       desc: "Xử lý đơn tố cáo bài viết từ người dùng.",
     },
+    suggestions: {
+      title: "Đề Xuất Từ Vựng",
+      desc: "Xem xét và quản lý các đề xuất từ vựng mới gửi từ người dùng.",
+    },
   } as const;
 
   const NAV_TABS = [
