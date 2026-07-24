@@ -56,11 +56,11 @@ export const blogApi = {
   },
 
   getReplies: (commentId: number, page = 0, size = 10): Promise<PageResponse<BlogReplyResponse>> => {
-    return axiosClient.get(`/blogs/${commentId}/replies?page=${page}&size=${size}`);
+    return axiosClient.get(`/blogs/comments/${commentId}/replies?page=${page}&size=${size}`);
   },
 
   addReply: (commentId: number, content: string, mentionedUserId?: number | null): Promise<BlogReplyResponse> => {
-    return axiosClient.post(`/blogs/${commentId}/replies`, { content, mentionedUserId });
+    return axiosClient.post(`/blogs/comments/${commentId}/replies`, { content, mentionedUserId });
   },
 
   deleteReply: (replyId: number): Promise<void> => {
